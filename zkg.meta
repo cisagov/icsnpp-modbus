@@ -1,0 +1,8 @@
+[package]
+script_dir = scripts
+description = Modbus script for detailed logging of the Modbus protocol - CISA ICSNPP
+credits = Brett Rasmussen <brett.rasmussen@inl.gov> & Stephen Kleinheider <stephen.kleinheider@inl.gov>
+tags =  modbus, Modbus, ics, ICS, CISA, INL, ICSNPP, icsnpp, zeek scripting, log writer, protocol analyzer
+depends =
+  zkg >=2.0
+  zeek >=3.0.0
