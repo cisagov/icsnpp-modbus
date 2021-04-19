@@ -41,7 +41,7 @@ To install this script manually, clone this repository and copy the contents of 
 ```bash
 git clone https://github.com/cisagov/icsnpp-modbus.git
 zeek_install_dir=$(dirname $(dirname `which zeek`))
-cp -r scripts/ $zeek_install_dir/share/zeek/site/icsnpp-modbus
+cp -r icsnpp-modbus/scripts/ $zeek_install_dir/share/zeek/site/icsnpp-modbus
 ```
 
 If you are using a site deployment, simply add echo `@load icsnpp-modbus` to your local.site file.
@@ -130,10 +130,11 @@ All ICSNPP Packages:
 Full ICS Protocol Parsers:
 * [BACnet](https://github.com/cisagov/icsnpp-bacnet)
     * Full Zeek protocol parser for BACnet (Building Control and Automation)
-* [BSAP over IP](https://github.com/cisagov/icsnpp-bsap-ip)
+* [BSAP](https://github.com/cisagov/icsnpp-bsap)
     * Full Zeek protocol parser for BSAP (Bristol Standard Asynchronous Protocol) over IP
-* [BSAP Serial->Ethernet](https://github.com/cisagov/icsnpp-bsap-serial)
-    * Full Zeek protocol parser for BSAP (Bristol Standard Asynchronous Protocol) over Serial->Ethernet
+    * Full Zeek protocol parser for BSAP Serial comm converted using serial tap device
+* [Ethercat](https://github.com/cisagov/icsnpp-ethercat)
+    * Full Zeek protocol parser for Ethercat
 * [Ethernet/IP and CIP](https://github.com/cisagov/icsnpp-enip)
     * Full Zeek protocol parser for Ethernet/IP and CIP
 
