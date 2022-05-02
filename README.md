@@ -13,7 +13,7 @@ Zeek's default Modbus parser logs Modbus traffic to modbus.log. This log file re
 
 For additional information on these log files, see the *Logging Capabilities* section below.
 
-## Installation 
+## Installation
 
 ### Package Manager
 
@@ -31,7 +31,7 @@ If you are not using site/local.zeek or another site installation of Zeek and ju
 
 ```bash
 git clone https://github.com/cisagov/icsnpp-modbus.git
-zeek -Cr icsnpp-modbus/examples/modbus_example.pcap icsnpp-modbus
+zeek -Cr icsnpp-modbus/tests/traces/modbus_example.pcap icsnpp-modbus
 ```
 
 ### Manual Install
@@ -49,7 +49,7 @@ If you are using a site deployment, simply add echo `@load icsnpp-modbus` to you
 If you are not using site/local.zeek or another site installation of Zeek and just want to run this package on a packet capture you can add `icsnpp-modbus` to your command to run this plugin's scripts on the packet capture:
 
 ```bash
-zeek -Cr icsnpp-modbus/examples/modbus_example.pcap icsnpp-modbus
+zeek -Cr icsnpp-modbus/tests/traces/modbus_example.pcap icsnpp-modbus
 ```
 
 ## Logging Capabilities
@@ -137,6 +137,8 @@ Full ICS Protocol Parsers:
     * Full Zeek protocol parser for Ethercat
 * [Ethernet/IP and CIP](https://github.com/cisagov/icsnpp-enip)
     * Full Zeek protocol parser for Ethernet/IP and CIP
+* [Genisys](https://github.com/cisagov/icsnpp-genisys)
+    * Full Zeek protocol parser for Genisys
 * [OPCUA-Binary](https://github.com/cisagov/icsnpp-opcua-binary)
     * Full Zeek protocol parser for OPC UA (OPC Unified Architecture) - Binary
 
@@ -159,7 +161,7 @@ Idaho National Laboratory is a cutting edge research facility which is a constan
 
 ### License
 
-Copyright 2020 Battelle Energy Alliance, LLC
+Copyright 2022 Battelle Energy Alliance, LLC
 
 Licensed under the 3-Part BSD (the "License");
 you may not use this file except in compliance with the License.
