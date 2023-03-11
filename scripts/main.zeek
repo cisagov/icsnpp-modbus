@@ -6,7 +6,7 @@
 ##! Authors:  Brett Rasmussen & Stephen Kleinheider
 ##! Contact:  brett.rasmussen@inl.gov & stephen.kleinheider@inl.gov
 ##!
-##! Copyright (c) 2020 Battelle Energy Alliance, LLC.  All rights reserved.
+##! Copyright (c) 2023 Battelle Energy Alliance, LLC.  All rights reserved.
 
 @load base/protocols/modbus
 
