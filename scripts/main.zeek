@@ -24,9 +24,14 @@ export {
         ts                      : time              &log;             # Timestamp of event
         uid                     : string            &log;             # Zeek unique ID for connection
         id                      : conn_id           &log;             # Zeek connection struct (addresses and ports)
+        is_orig                 : bool              &log;             # the message came from the originator/client or the responder/server
+        source_h                : addr              &log;             # Source IP Address
+        source_p                : port              &log;             # Source Port
+        destination_h           : addr              &log;             # Destination IP Address
+        destination_p           : port              &log;             # Destination Port
         unit_id                 : count             &log;             # Modbus unit-id
         func                    : string            &log &optional;   # Modbus Function
-        network_direction       : string            &log &optional;   # Message direction (request or response)
+        request_response        : string            &log &optional;   # REQUEST or RESPONSE
         address                 : count             &log &optional;   # Starting address for value(s) field
         quantity                : count             &log &optional;   # Number of addresses/values read or written to
         values                  : string            &log &optional;   # Coils, discrete_inputs, or registers read/written to
@@ -40,9 +45,14 @@ export {
         ts                      : time              &log;             # Timestamp of event
         uid                     : string            &log;             # Zeek unique ID for connection
         id                      : conn_id           &log;             # Zeek connection struct (addresses and ports)
+        is_orig                 : bool              &log;             # the message came from the originator/client or the responder/server
+        source_h                : addr              &log;             # Source IP Address
+        source_p                : port              &log;             # Source Port
+        destination_h           : addr              &log;             # Destination IP Address
+        destination_p           : port              &log;             # Destination Port
         unit_id                 : count             &log;             # Modbus unit-id
         func                    : string            &log &optional;   # Modbus Function
-        network_direction       : string            &log &optional;   # Message direction (request or response)
+        request_response        : string            &log &optional;   # REQUEST or RESPONSE
         address                 : count             &log &optional;   # Address of the target register
         and_mask                : count             &log &optional;   # Boolean 'and' mask to apply to the target register
         or_mask                 : count             &log &optional;   # Boolean 'or' mask to apply to the target register
@@ -56,9 +66,14 @@ export {
         ts                      : time              &log;             # Timestamp of event
         uid                     : string            &log;             # Zeek unique ID for connection
         id                      : conn_id           &log;             # Zeek connection struct (addresses and ports)
+        is_orig                 : bool              &log;             # the message came from the originator/client or the responder/server
+        source_h                : addr              &log;             # Source IP Address
+        source_p                : port              &log;             # Source Port
+        destination_h           : addr              &log;             # Destination IP Address
+        destination_p           : port              &log;             # Destination Port
         unit_id                 : count             &log;             # Modbus unit-id
         func                    : string            &log &optional;   # Modbus Function
-        network_direction       : string            &log &optional;   # Message direction (request or response)
+        request_response        : string            &log &optional;   # REQUEST or RESPONSE
         write_start_address     : count             &log &optional;   # Starting address of the registers to write to
         write_registers         : ModbusRegisters   &log &optional;   # Register values written
         read_start_address      : count             &log &optional;   # Starting address of the registers to read
@@ -67,9 +82,6 @@ export {
     };
     global log_read_write_multiple_registers: event(rec: Read_Write_Multiple_Registers);
 }
-
-const request_str_g:  string = "request";            # Used with Network 'requests'
-const response_str_g: string = "response";           # Used with Network 'responses'
 
 #############################################################################################################################
 #######################################  Converts Coil Vector to List of Boolean Values #####################################
@@ -148,16 +160,16 @@ function handled_modbus_funct_list (cur_func_str : string): bool {
 #############################################################################################################################
 event zeek_init() &priority=5 {
     Log::create_stream(Modbus_Extended::LOG_DETAILED, [$columns=Modbus_Detailed, 
-                                              $ev=log_modbus_detailed,
-                                              $path="modbus_detailed"]);
+                                                       $ev=log_modbus_detailed,
+                                                       $path="modbus_detailed"]);
 
     Log::create_stream(Modbus_Extended::LOG_MASK_WRITE_REGISTER, [$columns=Mask_Write_Register,
-                                                         $ev=log_mask_write_register,
-                                                         $path="modbus_mask_write_register"]);
+                                                                  $ev=log_mask_write_register,
+                                                                  $path="modbus_mask_write_register"]);
 
     Log::create_stream(Modbus_Extended::LOG_READ_WRITE_MULTIPLE_REGISTERS, [$columns=Read_Write_Multiple_Registers, 
-                                                                   $ev=log_read_write_multiple_registers,
-                                                                   $path="modbus_read_write_multiple_registers"]);
+                                                                            $ev=log_read_write_multiple_registers,
+                                                                            $path="modbus_read_write_multiple_registers"]);
 }
 
 #############################################################################################################################
@@ -174,9 +186,15 @@ event modbus_read_discrete_inputs_request(c: connection,
     read_discrete_inputs_request$uid                = c$uid;
     read_discrete_inputs_request$id                 = c$id;
 
+    read_discrete_inputs_request$is_orig            = T;
+    read_discrete_inputs_request$source_h           = c$id$orig_h;
+    read_discrete_inputs_request$source_p           = c$id$orig_p;
+    read_discrete_inputs_request$destination_h      = c$id$resp_h;
+    read_discrete_inputs_request$destination_p      = c$id$resp_p;
+
     read_discrete_inputs_request$unit_id            = headers$uid;
     read_discrete_inputs_request$func               = Modbus::function_codes[headers$function_code];
-    read_discrete_inputs_request$network_direction  = request_str_g;
+    read_discrete_inputs_request$request_response   = "REQUEST";
     read_discrete_inputs_request$address            = start_address;
     read_discrete_inputs_request$quantity           = quantity;
 
@@ -196,9 +214,15 @@ event modbus_read_discrete_inputs_response(c: connection,
     read_discrete_inputs_response$uid               = c$uid;
     read_discrete_inputs_response$id                = c$id;
 
+    read_discrete_inputs_response$is_orig           = F;
+    read_discrete_inputs_response$source_h          = c$id$resp_h;
+    read_discrete_inputs_response$source_p          = c$id$resp_p;
+    read_discrete_inputs_response$destination_h     = c$id$orig_h;
+    read_discrete_inputs_response$destination_p     = c$id$orig_p;
+
     read_discrete_inputs_response$unit_id           = headers$uid;
     read_discrete_inputs_response$func              = Modbus::function_codes[headers$function_code];
-    read_discrete_inputs_response$network_direction = response_str_g;
+    read_discrete_inputs_response$request_response  = "RESPONSE";
     read_discrete_inputs_response$quantity          = |coils|;
     read_discrete_inputs_response$values            = coils_to_bools_string (coils);
 
@@ -219,9 +243,15 @@ event modbus_read_coils_request(c: connection,
     read_coils_request$uid                  = c$uid;
     read_coils_request$id                   = c$id;
 
+    read_coils_request$is_orig              = T;
+    read_coils_request$source_h             = c$id$orig_h;
+    read_coils_request$source_p             = c$id$orig_p;
+    read_coils_request$destination_h        = c$id$resp_h;
+    read_coils_request$destination_p        = c$id$resp_p;
+
     read_coils_request$unit_id              = headers$uid;
     read_coils_request$func                 = Modbus::function_codes[headers$function_code];
-    read_coils_request$network_direction    = request_str_g;
+    read_coils_request$request_response     = "REQUEST";
     read_coils_request$address              = start_address;
     read_coils_request$quantity             = quantity;
 
@@ -240,9 +270,16 @@ event modbus_read_coils_response(c: connection,
     read_coils_response$ts                  = network_time();
     read_coils_response$uid                 = c$uid;
     read_coils_response$id                  = c$id;
+
+    read_coils_response$is_orig             = F;
+    read_coils_response$source_h            = c$id$resp_h;
+    read_coils_response$source_p            = c$id$resp_p;
+    read_coils_response$destination_h       = c$id$orig_h;
+    read_coils_response$destination_p       = c$id$orig_p;
+
     read_coils_response$unit_id             = headers$uid;
     read_coils_response$func                = Modbus::function_codes[headers$function_code];
-    read_coils_response$network_direction   = response_str_g;
+    read_coils_response$request_response    = "RESPONSE";
     read_coils_response$quantity            = |coils|;
     read_coils_response$values              = coils_to_bools_string (coils);
 
@@ -263,9 +300,15 @@ event modbus_read_input_registers_request(c: connection,
     read_input_request$uid                  = c$uid;
     read_input_request$id                   = c$id;
 
+    read_input_request$is_orig              = T;
+    read_input_request$source_h             = c$id$orig_h;
+    read_input_request$source_p             = c$id$orig_p;
+    read_input_request$destination_h        = c$id$resp_h;
+    read_input_request$destination_p        = c$id$resp_p;
+
     read_input_request$unit_id              = headers$uid;
     read_input_request$func                 = Modbus::function_codes[headers$function_code];
-    read_input_request$network_direction    = request_str_g;
+    read_input_request$request_response     = "REQUEST";
     read_input_request$address              = start_address;
     read_input_request$quantity             = quantity;
 
@@ -284,9 +327,16 @@ event modbus_read_input_registers_response(c: connection,
     read_input_response$ts                  = network_time();
     read_input_response$uid                 = c$uid;
     read_input_response$id                  = c$id;
+
+    read_input_response$is_orig             = F;
+    read_input_response$source_h            = c$id$resp_h;
+    read_input_response$source_p            = c$id$resp_p;
+    read_input_response$destination_h       = c$id$orig_h;
+    read_input_response$destination_p       = c$id$orig_p;
+
     read_input_response$unit_id             = headers$uid;
     read_input_response$func                = Modbus::function_codes[headers$function_code];
-    read_input_response$network_direction   = response_str_g;
+    read_input_response$request_response    = "RESPONSE";
     read_input_response$quantity            = |registers|;
     read_input_response$values              = registers_to_counts_string (registers);
 
@@ -306,9 +356,15 @@ event modbus_read_holding_registers_request(c: connection,
     read_holding_request$uid                = c$uid;
     read_holding_request$id                 = c$id;
 
+    read_holding_request$is_orig              = T;
+    read_holding_request$source_h             = c$id$orig_h;
+    read_holding_request$source_p             = c$id$orig_p;
+    read_holding_request$destination_h        = c$id$resp_h;
+    read_holding_request$destination_p        = c$id$resp_p;
+
     read_holding_request$unit_id            = headers$uid;
     read_holding_request$func               = Modbus::function_codes[headers$function_code];
-    read_holding_request$network_direction  = request_str_g;
+    read_holding_request$request_response   = "REQUEST";
     read_holding_request$address            = start_address;
     read_holding_request$quantity           = quantity;
 
@@ -328,9 +384,15 @@ event modbus_read_holding_registers_response(c: connection,
     read_holding_reg_response$uid               = c$uid;
     read_holding_reg_response$id                = c$id;
 
+    read_holding_reg_response$is_orig           = F;
+    read_holding_reg_response$source_h          = c$id$resp_h;
+    read_holding_reg_response$source_p          = c$id$resp_p;
+    read_holding_reg_response$destination_h     = c$id$orig_h;
+    read_holding_reg_response$destination_p     = c$id$orig_p;
+
     read_holding_reg_response$unit_id           = headers$uid;
     read_holding_reg_response$func              = Modbus::function_codes[headers$function_code];
-    read_holding_reg_response$network_direction = response_str_g;
+    read_holding_reg_response$request_response  = "RESPONSE";
     read_holding_reg_response$quantity          = |registers|;
     read_holding_reg_response$values            = registers_to_counts_string (registers);;
 
@@ -350,9 +412,15 @@ event modbus_read_fifo_queue_request(c: connection,
     read_fifo_queue_request$uid                 = c$uid;
     read_fifo_queue_request$id                  = c$id;
 
+    read_fifo_queue_request$is_orig             = T;
+    read_fifo_queue_request$source_h            = c$id$orig_h;
+    read_fifo_queue_request$source_p            = c$id$orig_p;
+    read_fifo_queue_request$destination_h       = c$id$resp_h;
+    read_fifo_queue_request$destination_p       = c$id$resp_p;
+
     read_fifo_queue_request$unit_id             = headers$uid;
     read_fifo_queue_request$func                = Modbus::function_codes[headers$function_code];
-    read_fifo_queue_request$network_direction   = request_str_g;
+    read_fifo_queue_request$request_response    = "REQUEST";
     read_fifo_queue_request$address             = start_address;
 
     Log::write(LOG_DETAILED, read_fifo_queue_request);
@@ -370,10 +438,16 @@ event modbus_read_fifo_queue_response(c: connection,
     read_fifo_queue_response$ts                 = network_time();
     read_fifo_queue_response$uid                = c$uid;
     read_fifo_queue_response$id                 = c$id;
-    
+
+    read_fifo_queue_response$is_orig            = F;
+    read_fifo_queue_response$source_h           = c$id$resp_h;
+    read_fifo_queue_response$source_p           = c$id$resp_p;
+    read_fifo_queue_response$destination_h      = c$id$orig_h;
+    read_fifo_queue_response$destination_p      = c$id$orig_p;
+
     read_fifo_queue_response$unit_id            = headers$uid;
     read_fifo_queue_response$func               = Modbus::function_codes[headers$function_code];
-    read_fifo_queue_response$network_direction  = response_str_g;
+    read_fifo_queue_response$request_response   = "RESPONSE";
     read_fifo_queue_response$quantity           = |fifos|;
     read_fifo_queue_response$values             = registers_to_counts_string (fifos);
 
@@ -394,9 +468,15 @@ event modbus_write_single_coil_request(c: connection,
     write_single_coil_request$uid               = c$uid;
     write_single_coil_request$id                = c$id;
 
+    write_single_coil_request$is_orig           = T;
+    write_single_coil_request$source_h          = c$id$orig_h;
+    write_single_coil_request$source_p          = c$id$orig_p;
+    write_single_coil_request$destination_h     = c$id$resp_h;
+    write_single_coil_request$destination_p     = c$id$resp_p;
+
     write_single_coil_request$unit_id           = headers$uid;
     write_single_coil_request$func              = Modbus::function_codes[headers$function_code];
-    write_single_coil_request$network_direction = request_str_g;
+    write_single_coil_request$request_response  = "REQUEST";
     write_single_coil_request$address           = address;
     write_single_coil_request$quantity          = 1;
     write_single_coil_request$values            = fmt("%s", value);
@@ -418,9 +498,15 @@ event modbus_write_single_coil_response(c: connection,
     write_single_coil_response$uid                  = c$uid;
     write_single_coil_response$id                   = c$id;
 
+    write_single_coil_response$is_orig              = F;
+    write_single_coil_response$source_h             = c$id$resp_h;
+    write_single_coil_response$source_p             = c$id$resp_p;
+    write_single_coil_response$destination_h        = c$id$orig_h;
+    write_single_coil_response$destination_p        = c$id$orig_p;
+
     write_single_coil_response$unit_id              = headers$uid;
     write_single_coil_response$func                 = Modbus::function_codes[headers$function_code];
-    write_single_coil_response$network_direction    = response_str_g;
+    write_single_coil_response$request_response     = "RESPONSE";
     write_single_coil_response$address              = address;
     write_single_coil_response$quantity             = 1;
     write_single_coil_response$values               = fmt("%s", value);
@@ -442,9 +528,15 @@ event modbus_write_single_register_request(c: connection,
     write_single_register_request$uid               = c$uid;
     write_single_register_request$id                = c$id;
 
+    write_single_register_request$is_orig           = T;
+    write_single_register_request$source_h          = c$id$orig_h;
+    write_single_register_request$source_p          = c$id$orig_p;
+    write_single_register_request$destination_h     = c$id$resp_h;
+    write_single_register_request$destination_p     = c$id$resp_p;
+
     write_single_register_request$unit_id           = headers$uid;
     write_single_register_request$func              = Modbus::function_codes[headers$function_code];
-    write_single_register_request$network_direction = request_str_g;
+    write_single_register_request$request_response  = "REQUEST";
     write_single_register_request$address           = address;
     write_single_register_request$quantity          = 1;
     write_single_register_request$values            = fmt("%d", value);
@@ -466,9 +558,15 @@ event modbus_write_single_register_response(c: connection,
     write_single_register_response$uid                  = c$uid;
     write_single_register_response$id                   = c$id;
 
+    write_single_register_response$is_orig              = F;
+    write_single_register_response$source_h             = c$id$resp_h;
+    write_single_register_response$source_p             = c$id$resp_p;
+    write_single_register_response$destination_h        = c$id$orig_h;
+    write_single_register_response$destination_p        = c$id$orig_p;
+
     write_single_register_response$unit_id              = headers$uid;
     write_single_register_response$func                 = Modbus::function_codes[headers$function_code];
-    write_single_register_response$network_direction    = response_str_g;
+    write_single_register_response$request_response     = "RESPONSE";
     write_single_register_response$address              = address;
     write_single_register_response$quantity             = 1;
     write_single_register_response$values               = fmt("%d", value);
@@ -490,9 +588,15 @@ event modbus_write_multiple_coils_request(c: connection,
     write_multiple_coils_request$uid                = c$uid;
     write_multiple_coils_request$id                 = c$id;
 
+    write_multiple_coils_request$is_orig            = T;
+    write_multiple_coils_request$source_h           = c$id$orig_h;
+    write_multiple_coils_request$source_p           = c$id$orig_p;
+    write_multiple_coils_request$destination_h      = c$id$resp_h;
+    write_multiple_coils_request$destination_p      = c$id$resp_p;
+
     write_multiple_coils_request$unit_id            = headers$uid;
     write_multiple_coils_request$func               = Modbus::function_codes[headers$function_code];
-    write_multiple_coils_request$network_direction  = request_str_g;
+    write_multiple_coils_request$request_response   = "REQUEST";
     write_multiple_coils_request$address            = start_address;
     write_multiple_coils_request$quantity           = |coils|;
     write_multiple_coils_request$values             = coils_to_bools_string (coils);;
@@ -514,9 +618,15 @@ event modbus_write_multiple_coils_response(c: connection,
     write_multiple_coils_response$uid               = c$uid;
     write_multiple_coils_response$id                = c$id;
 
+    write_multiple_coils_response$is_orig           = F;
+    write_multiple_coils_response$source_h          = c$id$resp_h;
+    write_multiple_coils_response$source_p          = c$id$resp_p;
+    write_multiple_coils_response$destination_h     = c$id$orig_h;
+    write_multiple_coils_response$destination_p     = c$id$orig_p;
+
     write_multiple_coils_response$unit_id           = headers$uid;
     write_multiple_coils_response$func              = Modbus::function_codes[headers$function_code];
-    write_multiple_coils_response$network_direction = response_str_g;
+    write_multiple_coils_response$request_response  = "RESPONSE";
     write_multiple_coils_response$address           = start_address;
     write_multiple_coils_response$quantity          = quantity;
 
@@ -537,9 +647,15 @@ event modbus_write_multiple_registers_request(c: connection,
     write_multiple_registers_request$uid                = c$uid;
     write_multiple_registers_request$id                 = c$id;
 
+    write_multiple_registers_request$is_orig            = T;
+    write_multiple_registers_request$source_h           = c$id$orig_h;
+    write_multiple_registers_request$source_p           = c$id$orig_p;
+    write_multiple_registers_request$destination_h      = c$id$resp_h;
+    write_multiple_registers_request$destination_p      = c$id$resp_p;
+
     write_multiple_registers_request$unit_id            = headers$uid;
     write_multiple_registers_request$func               = Modbus::function_codes[headers$function_code];
-    write_multiple_registers_request$network_direction  = request_str_g;
+    write_multiple_registers_request$request_response   = "REQUEST";
     write_multiple_registers_request$address            = start_address;
     write_multiple_registers_request$quantity           = |registers|;
     write_multiple_registers_request$values             = registers_to_counts_string (registers);;
@@ -548,7 +664,7 @@ event modbus_write_multiple_registers_request(c: connection,
 }
 
 #############################################################################################################################
-#################  Defines logging of modbus_write_multiple_registers_request event -> modbus_detailed.log  #################
+#################  Defines logging of modbus_write_multiple_registers_response event -> modbus_detailed.log  ################
 #############################################################################################################################
 event modbus_write_multiple_registers_response(c: connection, 
                                                headers: ModbusHeaders, 
@@ -561,9 +677,15 @@ event modbus_write_multiple_registers_response(c: connection,
     write_multiple_registers_response$uid               = c$uid;
     write_multiple_registers_response$id                = c$id;
 
+    write_multiple_registers_response$is_orig           = F;
+    write_multiple_registers_response$source_h          = c$id$resp_h;
+    write_multiple_registers_response$source_p          = c$id$resp_p;
+    write_multiple_registers_response$destination_h     = c$id$orig_h;
+    write_multiple_registers_response$destination_p     = c$id$orig_p;
+
     write_multiple_registers_response$unit_id           = headers$uid;
     write_multiple_registers_response$func              = Modbus::function_codes[headers$function_code];
-    write_multiple_registers_response$network_direction = response_str_g;
+    write_multiple_registers_response$request_response  = "RESPONSE";
     write_multiple_registers_response$address           = start_address;
     write_multiple_registers_response$quantity          = quantity;
 
@@ -586,9 +708,15 @@ event modbus_read_write_multiple_registers_request(c: connection,
     read_write_multiple_registers_request$uid                  = c$uid;
     read_write_multiple_registers_request$id                   = c$id;
 
+    read_write_multiple_registers_request$is_orig              = T;
+    read_write_multiple_registers_request$source_h             = c$id$orig_h;
+    read_write_multiple_registers_request$source_p             = c$id$orig_p;
+    read_write_multiple_registers_request$destination_h        = c$id$resp_h;
+    read_write_multiple_registers_request$destination_p        = c$id$resp_p;
+
     read_write_multiple_registers_request$unit_id              = headers$uid;
     read_write_multiple_registers_request$func                 = Modbus::function_codes[headers$function_code];
-    read_write_multiple_registers_request$network_direction    = request_str_g;
+    read_write_multiple_registers_request$request_response     = "REQUEST";
     read_write_multiple_registers_request$read_start_address   = read_start_address;
     read_write_multiple_registers_request$read_quantity        = read_quantity;
     read_write_multiple_registers_request$write_start_address  = write_start_address;
@@ -610,9 +738,15 @@ event modbus_read_write_multiple_registers_response(c: connection,
     read_write_multiple_registers_response$uid                  = c$uid;
     read_write_multiple_registers_response$id                   = c$id;
 
+    read_write_multiple_registers_response$is_orig              = F;
+    read_write_multiple_registers_response$source_h             = c$id$resp_h;
+    read_write_multiple_registers_response$source_p             = c$id$resp_p;
+    read_write_multiple_registers_response$destination_h        = c$id$orig_h;
+    read_write_multiple_registers_response$destination_p        = c$id$orig_p;
+
     read_write_multiple_registers_response$unit_id              = headers$uid;
     read_write_multiple_registers_response$func                 = Modbus::function_codes[headers$function_code];
-    read_write_multiple_registers_response$network_direction    = response_str_g;
+    read_write_multiple_registers_response$request_response     = "RESPONSE";
     read_write_multiple_registers_response$read_registers       = written_registers;
 
     Log::write(LOG_READ_WRITE_MULTIPLE_REGISTERS, read_write_multiple_registers_response);
@@ -629,9 +763,16 @@ event modbus_read_file_record_request(c: connection,
     read_file_record_request$ts                 = network_time();
     read_file_record_request$uid                = c$uid;
     read_file_record_request$id                 = c$id;
+
+    read_file_record_request$is_orig            = T;
+    read_file_record_request$source_h           = c$id$orig_h;
+    read_file_record_request$source_p           = c$id$orig_p;
+    read_file_record_request$destination_h      = c$id$resp_h;
+    read_file_record_request$destination_p      = c$id$resp_p;
+
     read_file_record_request$unit_id            = headers$uid;
     read_file_record_request$func               = Modbus::function_codes[headers$function_code];
-    read_file_record_request$network_direction  = request_str_g;
+    read_file_record_request$request_response   = "REQUEST";
 
     Log::write(LOG_DETAILED, read_file_record_request);
 }
@@ -648,9 +789,15 @@ event modbus_read_file_record_response(c: connection,
     read_file_record_response$uid               = c$uid;
     read_file_record_response$id                = c$id;
 
+    read_file_record_response$is_orig           = F;
+    read_file_record_response$source_h          = c$id$resp_h;
+    read_file_record_response$source_p          = c$id$resp_p;
+    read_file_record_response$destination_h     = c$id$orig_h;
+    read_file_record_response$destination_p     = c$id$orig_p;
+
     read_file_record_response$unit_id           = headers$uid;
     read_file_record_response$func              = Modbus::function_codes[headers$function_code];
-    read_file_record_response$network_direction = response_str_g;
+    read_file_record_response$request_response  = "RESPONSE";
 
     Log::write(LOG_DETAILED, read_file_record_response);
 }
@@ -667,9 +814,15 @@ event modbus_write_file_record_request(c: connection,
     write_file_record_request$uid               = c$uid;
     write_file_record_request$id                = c$id;
 
+    write_file_record_request$is_orig           = T;
+    write_file_record_request$source_h          = c$id$orig_h;
+    write_file_record_request$source_p          = c$id$orig_p;
+    write_file_record_request$destination_h     = c$id$resp_h;
+    write_file_record_request$destination_p     = c$id$resp_p;
+
     write_file_record_request$unit_id           = headers$uid;
     write_file_record_request$func              = Modbus::function_codes[headers$function_code];
-    write_file_record_request$network_direction = request_str_g;
+    write_file_record_request$request_response  = "REQUEST";
 
     Log::write(LOG_DETAILED, write_file_record_request);
 }
@@ -685,10 +838,16 @@ event modbus_write_file_record_response(c: connection,
     write_file_record_response$ts                   = network_time();
     write_file_record_response$uid                  = c$uid;
     write_file_record_response$id                   = c$id;
+
+    write_file_record_response$is_orig              = F;
+    write_file_record_response$source_h             = c$id$resp_h;
+    write_file_record_response$source_p             = c$id$resp_p;
+    write_file_record_response$destination_h        = c$id$orig_h;
+    write_file_record_response$destination_p        = c$id$orig_p;
     
     write_file_record_response$unit_id              = headers$uid;
     write_file_record_response$func                 = Modbus::function_codes[headers$function_code];
-    write_file_record_response$network_direction    = response_str_g;
+    write_file_record_response$request_response     = "RESPONSE";
 
     Log::write(LOG_DETAILED, write_file_record_response);
 }
@@ -708,9 +867,15 @@ event modbus_mask_write_register_request(c: connection,
     mask_write_register_request$uid                 = c$uid;
     mask_write_register_request$id                  = c$id;
 
+    mask_write_register_request$is_orig             = T;
+    mask_write_register_request$source_h            = c$id$orig_h;
+    mask_write_register_request$source_p            = c$id$orig_p;
+    mask_write_register_request$destination_h       = c$id$resp_h;
+    mask_write_register_request$destination_p       = c$id$resp_p;
+
     mask_write_register_request$unit_id             = headers$uid;
     mask_write_register_request$func                = Modbus::function_codes[headers$function_code];
-    mask_write_register_request$network_direction   = request_str_g;
+    mask_write_register_request$request_response    = "REQUEST";
     mask_write_register_request$address             = address;
     mask_write_register_request$and_mask            = and_mask;
     mask_write_register_request$or_mask             = or_mask;
@@ -733,9 +898,15 @@ event modbus_mask_write_register_response(c: connection,
     mask_write_register_response$uid                = c$uid;
     mask_write_register_response$id                 = c$id;
 
+    mask_write_register_response$is_orig            = F;
+    mask_write_register_response$source_h           = c$id$resp_h;
+    mask_write_register_response$source_p           = c$id$resp_p;
+    mask_write_register_response$destination_h      = c$id$orig_h;
+    mask_write_register_response$destination_p      = c$id$orig_p;
+
     mask_write_register_response$unit_id            = headers$uid;
     mask_write_register_response$func               = Modbus::function_codes[headers$function_code];
-    mask_write_register_response$network_direction  = response_str_g;
+    mask_write_register_response$request_response   = "RESPONSE";
     mask_write_register_response$address            = address;
     mask_write_register_response$and_mask           = and_mask;
     mask_write_register_response$or_mask            = or_mask;
@@ -752,10 +923,22 @@ event modbus_message(c: connection,
     local modbus_detailed_rec: Modbus_Detailed;
 
     if (( headers$function_code < 0x81 || headers$function_code > 0x98 )) {
-        if (is_orig)
-            modbus_detailed_rec$network_direction = request_str_g;
-        else
-            modbus_detailed_rec$network_direction = response_str_g;
+
+        if (is_orig){
+            modbus_detailed_rec$is_orig           = T;
+            modbus_detailed_rec$source_h          = c$id$orig_h;
+            modbus_detailed_rec$source_p          = c$id$orig_p;
+            modbus_detailed_rec$destination_h     = c$id$resp_h;
+            modbus_detailed_rec$destination_p     = c$id$resp_p;
+            modbus_detailed_rec$request_response  = "REQUEST";
+        }else{
+            modbus_detailed_rec$is_orig           = F;
+            modbus_detailed_rec$source_h          = c$id$resp_h;
+            modbus_detailed_rec$source_p          = c$id$resp_p;
+            modbus_detailed_rec$destination_h     = c$id$orig_h;
+            modbus_detailed_rec$destination_p     = c$id$orig_p;
+            modbus_detailed_rec$request_response  = "RESPONSE";
+        }
 
         if ( !handled_modbus_funct_list (c$modbus$func)) {
             modbus_detailed_rec$ts        = c$modbus$ts;
@@ -780,8 +963,15 @@ event modbus_exception(c: connection,
     exception_detailed$ts                   = network_time();
     exception_detailed$uid                  = c$uid;
     exception_detailed$id                   = c$id;
+
+    exception_detailed$is_orig              = F;
+    exception_detailed$source_h             = c$id$resp_h;
+    exception_detailed$source_p             = c$id$resp_p;
+    exception_detailed$destination_h        = c$id$orig_h;
+    exception_detailed$destination_p        = c$id$orig_p;
+
     exception_detailed$func                 = c$modbus$func;
-    exception_detailed$network_direction    = response_str_g;
+    exception_detailed$request_response     = "RESPONSE";
     exception_detailed$values               = c$modbus$exception;
 
     Log::write(LOG_DETAILED, exception_detailed);

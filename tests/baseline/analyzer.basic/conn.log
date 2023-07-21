@@ -7,6 +7,6 @@
 #open XXXX-XX-XX-XX-XX-XX
 #fields	ts	uid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	proto	service	duration	orig_bytes	resp_bytes	conn_state	local_orig	local_resp	missed_bytes	history	orig_pkts	orig_ip_bytes	resp_pkts	resp_ip_bytes	tunnel_parents
 #types	time	string	addr	port	addr	port	enum	string	interval	count	count	string	bool	bool	count	string	count	count	count	count	set[string]
-XXXXXXXXXX.XXXXXX	CHhAvVGS1DHFjwGM9	127.0.0.1	47785	127.0.0.1	502	tcp	modbus	0.006324	292	393	SF	-	-	0	ShADadFf	50	2900	48	2897	-
-XXXXXXXXXX.XXXXXX	ClEkJM2Vm5giqnMf4h	192.168.1.6	37699	3.15.227.20	502	tcp	modbus	0.100079	12	9	OTH	-	-	0	Dd	1	64	1	61	-
+XXXXXXXXXX.XXXXXX	CHhAvVGS1DHFjwGM9	127.0.0.1	47785	127.0.0.1	502	tcp	modbus	0.006324	292	393	SF	T	T	0	ShADadFf	50	2900	48	2897	-
+XXXXXXXXXX.XXXXXX	ClEkJM2Vm5giqnMf4h	192.168.1.6	37699	3.15.227.20	502	tcp	modbus	0.100079	12	9	OTH	T	F	0	Dd	1	64	1	61	-
 #close XXXX-XX-XX-XX-XX-XX
