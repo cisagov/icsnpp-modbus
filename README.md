@@ -24,10 +24,10 @@ zkg refresh
 zkg install icsnpp-modbus
 ```
 
-If you have ZKG configured to load packages (see @load packages in quickstart guide), this script will automatically be loaded and ready to go.
+If ZKG is configured to load packages (see @load packages in quickstart guide), this script will automatically be loaded and ready to go.
 [ZKG Quickstart Guide](https://docs.zeek.org/projects/package-manager/en/stable/quickstart.html)
 
-If you are not using site/local.zeek or another site installation of Zeek and just want to run this script on a packet capture you can add `icsnpp-modbus` to your command to run this script on the packet capture:
+If users are not using site/local.zeek or another site installation of Zeek and want to run this script on a packet capture, they can add `icsnpp-modbus` to the command to run this script on the packet capture:
 
 ```bash
 git clone https://github.com/cisagov/icsnpp-modbus.git
@@ -44,9 +44,9 @@ zeek_install_dir=$(dirname $(dirname `which zeek`))
 cp -r icsnpp-modbus/scripts/ $zeek_install_dir/share/zeek/site/icsnpp-modbus
 ```
 
-If you are using a site deployment, simply add echo `@load icsnpp-modbus` to your local.site file.
+If using a site deployment, simply add echo `@load icsnpp-modbus` to the local.site file.
 
-If you are not using site/local.zeek or another site installation of Zeek and just want to run this package on a packet capture you can add `icsnpp-modbus` to your command to run this plugin's scripts on the packet capture:
+If users are not using site/local.zeek or another site installation of Zeek and want to run this package on a packet capture, they can add `icsnpp-modbus` to the command to run this plugin's scripts on the packet capture:
 
 ```bash
 zeek -Cr icsnpp-modbus/tests/traces/modbus_example.pcap icsnpp-modbus
@@ -63,7 +63,7 @@ This log captures Modbus header and data fields and logs them to **modbus_detail
 This log file contains the functions (read/write), count, addresses, and values of Modbus coils, discrete inputs, input registers, and holding registers.
 
 A "network_direction" meta-data field is also included in the log.  The "network_direction" column specifies whether the message was a *request* or a *response* message. 
-If an exception arises in the Modbus data the exception code will be logged in the "values" field.
+If an exception arises in the Modbus data, the exception code will be logged in the "values" field.
 
 #### Fields Captured
 
@@ -74,9 +74,9 @@ If an exception arises in the Modbus data the exception code will be logged in t
 | id                | conn_id   | Default Zeek connection info (IP addresses, ports)                |
 | is_orig           | bool      | True if the packet is sent from the originator                    |
 | source_h          | address   | Source IP address (see *Source and Destination Fields*)           |
-| source_p          | port      | Source Port (see *Source and Destination Fields*)                 |
+| source_p          | port      | Source port (see *Source and Destination Fields*)                 |
 | destination_h     | address   | Destination IP address (see *Source and Destination Fields*)      |
-| destination_p     | port      | Destination Port (see *Source and Destination Fields*)            |
+| destination_p     | port      | Destination port (see *Source and Destination Fields*)            |
 | uint_id           | count     | Modbus unit-id                                                    |
 | func              | string    | Modbus function code                                              |
 | request_response  | string    | REQUEST or RESPONSE                                               |
@@ -100,9 +100,9 @@ This log captures the fields of the Modbus *mask_write_register* function (funct
 | id                | conn_id   | Default Zeek connection info (IP addresses, ports)                |
 | is_orig           | bool      | True if the packet is sent from the originator                    |
 | source_h          | address   | Source IP address (see *Source and Destination Fields*)           |
-| source_p          | port      | Source Port (see *Source and Destination Fields*)                 |
+| source_p          | port      | Source port (see *Source and Destination Fields*)                 |
 | destination_h     | address   | Destination IP address (see *Source and Destination Fields*)      |
-| destination_p     | port      | Destination Port (see *Source and Destination Fields*)            |
+| destination_p     | port      | Destination port (see *Source and Destination Fields*)            |
 | uint_id           | count     | Modbus unit-id                                                    |
 | func              | string    | Modbus function code                                              |
 | request_response  | string    | REQUEST or RESPONSE                                               |
@@ -125,9 +125,9 @@ This log captures the fields of the Modbus *read/write multiple registers* funct
 | id                    | conn_id   | Default Zeek connection info (IP addresses, ports)            |
 | is_orig               | bool      | True if the packet is sent from the originator                |
 | source_h              | address   | Source IP address (see *Source and Destination Fields*)       |
-| source_p              | port      | Source Port (see *Source and Destination Fields*)             |
+| source_p              | port      | Source port (see *Source and Destination Fields*)             |
 | destination_h         | address   | Destination IP address (see *Source and Destination Fields*)  |
-| destination_p         | port      | Destination Port (see *Source and Destination Fields*)        |
+| destination_p         | port      | Destination port (see *Source and Destination Fields*)        |
 | uint_id               | count     | Modbus unit-id                                                |
 | func                  | string    | Modbus function code                                          |
 | request_response      | string    | REQUEST or RESPONSE                                           |
@@ -212,7 +212,7 @@ Updates to Zeek ICS Protocol Parsers:
     * Modbus Zeek script extending logging capabilities of Zeek's default Modbus protocol parser
 
 ### Other Software
-Idaho National Laboratory is a cutting edge research facility which is a constantly producing high quality research and software. Feel free to take a look at our other software and scientific offerings at:
+Idaho National Laboratory is a national research facility with a focus on development of software and toolchains to improve the security of criticial infrastructure environments around the world. Please review our other software and scientific offerings at:
 
 [Primary Technology Offerings Page](https://www.inl.gov/inl-initiatives/technology-deployment)
 
@@ -226,9 +226,9 @@ Idaho National Laboratory is a cutting edge research facility which is a constan
 
 Copyright 2023 Battelle Energy Alliance, LLC
 
-Licensed under the 3-Part BSD (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+Licensed under the 3-Clause BSD License (the "License");
+this file cannot be used except in compliance with the License.
+A copy of the License can be obtained at:
 
   https://opensource.org/licenses/BSD-3-Clause
 
@@ -238,11 +238,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-
-
-
 Licensing
 -----
-This software is licensed under the terms you may find in the file named "LICENSE" in this directory.
+This software is licensed under the terms found in the file named "LICENSE" in this directory.
 
-You agree your contributions are submitted under the BSD-3-Clause license. You represent you are authorized to make the contributions and grant the license. If your employer has rights to intellectual property that includes your contributions, you represent that you have received permission to make contributions and grant the required license on behalf of that employer.
+Users agree all contributions are submitted under the BSD-3-Clause license. Users acknowledge they are authorized to make the contributions and grant this license. If the user's employer has rights to intellectual property that include user contributions, the user acknowledges permission to make contributions and grant the required license on behalf of that employer.
