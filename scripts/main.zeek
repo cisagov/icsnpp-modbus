@@ -83,6 +83,8 @@ export {
     global log_read_write_multiple_registers: event(rec: Read_Write_Multiple_Registers);
 }
 
+redef DPD::ignore_violations += { Analyzer::ANALYZER_MODBUS };
+
 #############################################################################################################################
 #######################################  Converts Coil Vector to List of Boolean Values #####################################
 #############################################################################################################################
