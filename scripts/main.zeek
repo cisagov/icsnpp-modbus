@@ -757,8 +757,16 @@ event modbus_read_write_multiple_registers_response(c: connection,
 #############################################################################################################################
 #####################  Defines logging of modbus_read_file_record_request event -> modbus_detailed.log  #####################
 #############################################################################################################################
-event modbus_read_file_record_request(c: connection, 
-                                      headers: ModbusHeaders) {
+@if (Version::at_least("6.1.0"))
+event modbus_read_file_record_request(c: connection,
+                                      headers: ModbusHeaders,
+                                      byte_count: count,
+                                      refs: ModbusFileRecordRequests)
+@else
+event modbus_read_file_record_request(c: connection,
+                                      headers: ModbusHeaders)
+@endif
+{
 
     local read_file_record_request: Modbus_Detailed;
 
@@ -782,8 +790,16 @@ event modbus_read_file_record_request(c: connection,
 #############################################################################################################################
 ####################  Defines logging of modbus_read_file_record_response event -> modbus_detailed.log  #####################
 #############################################################################################################################
-event modbus_read_file_record_response(c: connection, 
-                                       headers: ModbusHeaders) {  
+@if (Version::at_least("6.1.0"))
+event modbus_read_file_record_response(c: connection,
+                                       headers: ModbusHeaders,
+                                       byte_count: count,
+                                       refs: ModbusFileRecordResponses)
+@else
+event modbus_read_file_record_response(c: connection,
+                                       headers: ModbusHeaders)
+@endif
+{
 
     local read_file_record_response: Modbus_Detailed; 
 
@@ -807,8 +823,16 @@ event modbus_read_file_record_response(c: connection,
 #############################################################################################################################
 ####################  Defines logging of modbus_write_file_record_request event -> modbus_detailed.log  #####################
 #############################################################################################################################
-event modbus_write_file_record_request(c: connection, 
-                                       headers: ModbusHeaders){  
+@if (Version::at_least("6.1.0"))
+event modbus_write_file_record_request(c: connection,
+                                       headers: ModbusHeaders,
+                                       byte_count: count,
+                                       refs: ModbusFileReferences)
+@else
+event modbus_write_file_record_request(c: connection,
+                                       headers: ModbusHeaders)
+@endif
+{
 
     local write_file_record_request: Modbus_Detailed;
 
@@ -832,8 +856,16 @@ event modbus_write_file_record_request(c: connection,
 #############################################################################################################################
 ###################  Defines logging of modbus_write_file_record_response event -> modbus_detailed.log  #####################
 #############################################################################################################################
-event modbus_write_file_record_response(c: connection, 
-                                        headers: ModbusHeaders) {
+@if (Version::at_least("6.1.0"))
+event modbus_write_file_record_response(c: connection,
+                                        headers: ModbusHeaders,
+                                        byte_count: count,
+                                        refs: ModbusFileReferences)
+@else
+event modbus_write_file_record_response(c: connection,
+                                        headers: ModbusHeaders)
+@endif
+{
 
     local write_file_record_response: Modbus_Detailed;
 
