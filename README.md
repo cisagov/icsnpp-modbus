@@ -6,10 +6,11 @@ Industrial Control Systems Network Protocol Parsers (ICSNPP) - Modbus.
 
 ICSNPP-Modbus is a Zeek package that extends the logging capabilities of Zeek's default Modbus protocol parser.
 
-Zeek's default Modbus parser logs Modbus traffic to modbus.log. This log file remains unchanged. This package extends Modbus logging capability by adding three new Modbus log files:
+Zeek's default Modbus parser logs Modbus traffic to modbus.log. This log file remains unchanged. This package extends Modbus logging capability by adding four new Modbus log files:
 * modbus_detailed.log
 * modbus_mask_write_register.log
 * modbus_read_write_multiple_registers.log
+* modbus_read_device_identification.log
 
 For additional information on these log files, see the *Logging Capabilities* section below.
 
@@ -77,7 +78,8 @@ If an exception arises in the Modbus data, the exception code will be logged in 
 | source_p          | port      | Source port (see *Source and Destination Fields*)                 |
 | destination_h     | address   | Destination IP address (see *Source and Destination Fields*)      |
 | destination_p     | port      | Destination port (see *Source and Destination Fields*)            |
-| uint_id           | count     | Modbus unit-id                                                    |
+| tid               | count     | Modbus transaction identifier                                     |
+| uint              | count     | Modbus terminal unit identifier                                   |
 | func              | string    | Modbus function code                                              |
 | request_response  | string    | REQUEST or RESPONSE                                               |
 | address           | count     | Starting address of value(s) field                                |
@@ -103,7 +105,8 @@ This log captures the fields of the Modbus *mask_write_register* function (funct
 | source_p          | port      | Source port (see *Source and Destination Fields*)                 |
 | destination_h     | address   | Destination IP address (see *Source and Destination Fields*)      |
 | destination_p     | port      | Destination port (see *Source and Destination Fields*)            |
-| uint_id           | count     | Modbus unit-id                                                    |
+| tid               | count     | Modbus transaction identifier                                     |
+| uint              | count     | Modbus terminal unit identifier                                   |
 | func              | string    | Modbus function code                                              |
 | request_response  | string    | REQUEST or RESPONSE                                               |
 | address           | count     | Address of the target register                                    |
@@ -128,7 +131,8 @@ This log captures the fields of the Modbus *read/write multiple registers* funct
 | source_p              | port      | Source port (see *Source and Destination Fields*)             |
 | destination_h         | address   | Destination IP address (see *Source and Destination Fields*)  |
 | destination_p         | port      | Destination port (see *Source and Destination Fields*)        |
-| uint_id               | count     | Modbus unit-id                                                |
+| tid                   | count     | Modbus transaction identifier                                 |
+| uint                  | count     | Modbus terminal unit identifier                               |
 | func                  | string    | Modbus function code                                          |
 | request_response      | string    | REQUEST or RESPONSE                                           |
 | write_start_address   | count     | Starting address of registers to be written                   |
@@ -136,6 +140,39 @@ This log captures the fields of the Modbus *read/write multiple registers* funct
 | read_start_address    | count     | Starting address of the registers to read                     |
 | read_quantity         | count     | Number of registers to read in                                |
 | read_registers        | string    | Register values read                                          |
+
+
+### Read Device Identification Log (modbus_read_device_identification.log)
+
+#### Overview
+
+This log captures the fields of the Modbus *encapsulated interface transport* function (function code 0x2B) when the MEI type is set to 14 (0x0E) and logs them to **modbus_read_device_identification.log**.
+
+Note: this log is only produced in Zeek versions 6.1 and above
+ 
+#### Fields Captured
+
+| Field                 | Type      | Description                                                   |
+| ----------------------|-----------|---------------------------------------------------------------|
+| ts                    | time      | Timestamp                                                     |
+| uid                   | string    | Unique ID for this connection                                 |
+| id                    | conn_id   | Default Zeek connection info (IP addresses, ports)            |
+| is_orig               | bool      | True if the packet is sent from the originator                |
+| source_h              | address   | Source IP address (see *Source and Destination Fields*)       |
+| source_p              | port      | Source port (see *Source and Destination Fields*)             |
+| destination_h         | address   | Destination IP address (see *Source and Destination Fields*)  |
+| destination_p         | port      | Destination port (see *Source and Destination Fields*)        |
+| tid                   | count     | Modbus transaction identifier                                 |
+| uint                  | count     | Modbus terminal unit identifier                               |
+| func                  | string    | Modbus function code                                          |
+| request_response      | string    | REQUEST or RESPONSE                                           |
+| mei_type              | string    | MEI Type - Always READ-DEVICE-IDENTIFICATION                  |
+| conformity_level_code | string    | Conformity Level Code                                         |
+| conformity_level      | string    | Conformity Level                                              |
+| device_id_code        | count     | Device ID Code                                                |
+| object_id_code        | string    | Object ID Code                                                |
+| object_id             | string    | Object ID                                                     |
+| object_value          | string    | Object Value                                                  |
 
 ### Source and Destination Fields
 
