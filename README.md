@@ -218,6 +218,20 @@ The table below shows an example of these fields in the log files. The first log
 | 192.168.1.10 | 47785     | 192.168.1.200 | 502       | T       | 192.168.1.10  | 47785    | 192.168.1.200 | 502           |
 | 192.168.1.10 | 47785     | 192.168.1.200 | 502       | F       | 192.168.1.200 | 502      | 192.168.1.10  | 47785         |
 
+## Coverage
+
+See [Logging Capabilities](#logging-capabilities) for detailed information of the parser coverage.
+
+The Modbus protocol contains a few vendor and product specific functions. These vendor/product specific functions are not included in this parser. All coverage details in this section include information and statistics based on the basic/default Modbus protocol.
+
+### General/Header Logging
+
+The general log file for Modbus (modbus.log) is produced by Zeek's default Modbus parser and is not modified by this parser extension.
+
+### Detailed Logging
+
+Detailed logging for 11 Modbus functions are logged in the detailed log file (modbus_detailed.log), 1 Modbus function is logged in the mask write register log file (modbus_mask_write_register.log), 1 Modbus function is logged in the read write multiple registers log file (modbus_read_write_multiple_registers.log), and 1 Modbus function is logged in the read device identification log file (modbus_read_device_identification.log). The other, much less common, 5 Modbus functions do not contain detailed logging, therefore, ~74% (14/19) of the default Modbus functions contain detailed logging.
+
 ## ICSNPP Packages
 
 All ICSNPP Packages:
