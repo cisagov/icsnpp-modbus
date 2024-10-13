@@ -209,7 +209,9 @@ function handled_modbus_funct_list (cur_func_str : string): bool {
         (cur_func_str == "MASK_WRITE_REGISTER") ||
         (cur_func_str == "MASK_WRITE_REGISTER_EXCEPTION") ||
         (cur_func_str == "WRITE_FILE_RECORD") ||
-        (cur_func_str == "WRITE_FILE_RECORD_EXCEPTION")) {
+        (cur_func_str == "WRITE_FILE_RECORD_EXCEPTION") ||
+        (cur_func_str == "READ_FIFO_QUEUE") ||
+        (cur_func_str == "READ_FIFO_QUEUE_EXCEPTION")) {
             return T;
     }
     @if (Version::at_least("6.1.0"))
@@ -1360,7 +1362,7 @@ event modbus_message(c: connection,
 
     local modbus_detailed_rec: Modbus_Detailed;
 
-    if (( headers$function_code < 0x81 || headers$function_code > 0x98 )) {
+    if (( headers$function_code < 0x80)) {
 
         if (is_orig){
             modbus_detailed_rec$is_orig           = T;
