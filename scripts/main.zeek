@@ -23,26 +23,29 @@ export {
     #####################################  Modbus Detailed Log -> modbus_detailed.log  ######################################
     #########################################################################################################################
     type Modbus_Detailed: record {
-        ts                        : time              &log;             # Timestamp of event
-        uid                       : string            &log;             # Zeek unique ID for connection
-        id                        : conn_id           &log;             # Zeek connection struct (addresses and ports)
-        tid                       : count             &log &optional;   # Modbus transaction id
-        unit                      : count             &log &optional;   # Modbus terminal unit identifier
-        func                      : string            &log &optional;   # Modbus Function
-        address                   : count             &log &optional;   # Starting address for value(s) field
-        quantity		          : count             &log &optional;
-        request_values            : vector of count   &optional &log;   #  Value(s) of coils, discrete_inputs, or registers in the request
-	    response_values           : vector of count   &optional &log;   #  Value(s) of coils, discrete_inputs, or registers in the response 
-	    modbus_detailed_link_id   : string            &log &optional;
-	    matched			          : bool 		      &log &optional;
-        request_subfunction_code  : string            &log &optional;   # Diagnostic subfunction code in the request
-        response_subfunction_code : string            &log &optional;   # Diagnostic subfunction code in the response
-        request_data              : string            &log &optional;   # Any additional data or padding in the request
-        response_data             : string            &log &optional;   # Any additional data or padding in the response
-        exception_code            : string            &log &optional;   # Exception code in the response
-        mei_type                  : string            &log &optional;   # MEI Type in the encap interface transport
+        ts                      : time              &log;             # Timestamp of event
+        uid                     : string            &log;             # Zeek unique ID for connection
+        id                      : conn_id           &log;             # Zeek connection struct (addresses and ports)
+        #is_orig                : bool              &log;             # the message came from the originator/client or the responder/server
+        #source_h               : addr              &log;             # Source IP Address
+        #source_p               : port              &log;             # Source Port
+        #destination_h          : addr              &log;             # Destination IP Address
+        #destination_p          : port              &log;             # Destination Port
+        tid                     : count             &log &optional;   # Modbus transaction id
+        unit                    : count             &log &optional;   # Modbus terminal unit identifier
+        func                    : string            &log &optional;   # Modbus Function
+        #request_response       : string            &log &optional;   # REQUEST or RESPONSE
+        address                 : count             &log &optional;   # Starting address for value(s) field
+        quantity		: count             &log &optional;
+	response_data		: string	    &log &optional;
+	response_counts	        : vector of count   &optional &log;
+    	#response_bools		: vector of bool    &optional &log;
+	misc                    : string            &log &optional;
+	matched			: bool 		    &log &optional;
+	#quantity               : count             &log &optional;   # Number of addresses/values read or written to
+        #values                 : string            &log &optional;   # Coils, discrete_inputs, or registers read/written to
     };
-    global modbus_pending: table[string] of table[count] of Modbus_Detailed; 
+    global modbus_requests: table[conn_id] of table[count] of Modbus_Detailed; 
     global log_modbus_detailed: event(rec: Modbus_Detailed);
 
     #########################################################################################################################
@@ -79,8 +82,7 @@ export {
         source_h                : addr              &log;             # Source IP Address
         source_p                : port              &log;             # Source Port
         destination_h           : addr              &log;             # Destination IP Address
-        destination_p           : port              &log;	          # Destination IP
-        modbus_detailed_link_id : string            &log &optional;   # Link to the Modbus_Detailed log record
+        destination_p           : port              &log;	      # Destination IP
         tid                     : count             &log &optional;   # Modbus transaction id
         unit                    : count             &log &optional;   # Modbus terminal unit identifier
         func                    : string            &log &optional;   # Modbus Function
@@ -156,7 +158,50 @@ const device_identification_read_object_id = {
 
 
 #############################################################################################################################
-#######################################  Converts Count Vector to List of Count Values ######################################
+################################### Vector of Bool to Vector of Count  ######################################################
+#############################################################################################################################
+function bool_vec_to_count_vec(bools: vector of bool): vector of count {
+    local counts: vector of count;
+
+    for (i in bools) {
+        if ( bools[i] )
+            counts[i] = 1;
+        else
+            counts[i] = 0;
+    }
+
+    return counts;
+}
+#############################################################################################################################
+#######################################  Slice Vector of Count ##############################################################
+#############################################################################################################################
+function vector_slice_count(v: vector of count, start: count, len: count): vector of count {
+    local result: vector of count = vector();
+
+    local i = 0;
+    while (i < len) {
+        result += v[start + i - 1];
+        i += 1;
+    }
+
+    return result;
+}
+#############################################################################################################################
+#######################################  Slice Vector of Bool ###############################################################
+#############################################################################################################################
+function vector_slice_bool(v: vector of bool, start: count, len: count): vector of bool {
+    local result: vector of bool = vector();
+
+    local i = 0;
+    while (i < len) {
+        result += v[start + i - 1];
+        i += 1;
+    }
+
+    return result;
+}
+#############################################################################################################################
+#######################################  Converts Coil Vector to List of Boolean Values #####################################
 #############################################################################################################################
 function counts_to_misc_string (count_vector: vector of count): string {
 
@@ -295,30 +340,44 @@ event zeek_init() &priority=5 {
 ###################  Defines logging of modbus_read_discrete_inputs_request event -> modbus_detailed.log  ###################
 #############################################################################################################################
 event modbus_read_discrete_inputs_request(c: connection, 
-					                      headers: ModbusHeaders,
-				   	                      start_address: count,
+					  headers: ModbusHeaders,
+				   	  start_address: count,
                                           quantity: count){
 
-    if(response_string in modbus_pending && headers$tid in modbus_pending[response_string]) {
-        local resp = modbus_pending[response_string][headers$tid];
-        resp$matched = T;
-        resp$address = start_address;
-        resp$quantity = quantity;
-        Log::write(LOG_DETAILED, resp);
+    if(c$id !in modbus_requests)
+	modbus_requests[c$id] = table();
 
-        delete modbus_pending[response_string][headers$tid];
-        return;
-    }
-    else {
-        modbus_pending[request_string][headers$tid] = [$ts=network_time(),
-                                                       $uid=c$uid,
-                                                       $id=c$id,
-                                                       $tid=headers$tid,
-                                                       $func=Modbus::function_codes[headers$function_code],
-                                                       $unit=headers$uid,
-                                                       $address=start_address,
-                                                       $quantity=quantity];
-    }
+
+    modbus_requests[c$id][headers$tid] = [$ts=network_time(),
+				  $uid=c$uid,
+				  $id=c$id,
+				  $tid=headers$tid,
+				  $func=Modbus::function_codes[headers$function_code],
+				  $unit=headers$uid,
+				  $address=start_address,
+				  $quantity=quantity];
+
+
+    #local read_discrete_inputs_request: Modbus_Detailed;
+
+    #read_discrete_inputs_request$ts                 = network_time();
+    #read_discrete_inputs_request$uid                = c$uid;
+    #read_discrete_inputs_request$id                 = c$id;
+
+    #read_discrete_inputs_request$is_orig            = T;
+    #read_discrete_inputs_request$source_h           = c$id$orig_h;
+    #read_discrete_inputs_request$source_p           = c$id$orig_p;
+    #read_discrete_inputs_request$destination_h      = c$id$resp_h;
+    #read_discrete_inputs_request$destination_p      = c$id$resp_p;
+
+    #read_discrete_inputs_request$tid                = headers$tid;
+    #read_discrete_inputs_request$unit               = headers$uid;
+    #read_discrete_inputs_request$func               = Modbus::function_codes[headers$function_code];
+    #read_discrete_inputs_request$request_response   = "REQUEST";
+    #read_discrete_inputs_request$address            = start_address;
+    #read_discrete_inputs_request$quantity           = quantity;
+
+    #Log::write(LOG_DETAILED, read_discrete_inputs_request);
 }
 
 #############################################################################################################################
@@ -328,40 +387,43 @@ event modbus_read_discrete_inputs_response(c: connection,
                                            headers: ModbusHeaders, 
                                            coils: ModbusCoils){
 
- 
-    if(request_string in modbus_pending && headers$tid in modbus_pending[request_string]) {
-    	local req = modbus_pending[request_string][headers$tid];
+    if(c$id in modbus_requests && headers$tid in modbus_requests[c$id]) {
+    	local req = modbus_requests[c$id][headers$tid];
         local coil_count = req$quantity;
-        local sliced = vector_slice_bool(coils, coil_count, 0);
-	    req$response_values = bool_vec_to_count_vec(sliced);
-        local padding_size: count = |coils| - coil_count;
-        if (padding_size > 0) {
-            local padding_data: string = "";
-            local padding: vector of bool = vector_slice_bool(coils, padding_size, coil_count);
-            local padding_counts: vector of count = bool_vec_to_count_vec(padding);
-            padding_data = counts_to_misc_string(padding_counts);
-            req$response_data = padding_data;  
-        }
-
-	    req$matched = T;
+        local sliced = vector_slice_bool(coils, req$address, coil_count); 
+        req$response_counts = bool_vec_to_count_vec(sliced);
+	#req$response_data = coils_to_bools_string(sliced);
+	req$matched = T;
 
         Log::write(LOG_DETAILED, req);
 
-        #cleanup
-        delete modbus_pending[request_string][headers$tid];
-        return;
-
-    }
-    else {
-        modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                        $uid=c$uid,
-                                                        $id=c$id,
-                                                        $tid=headers$tid,
-                                                        $func=Modbus::function_codes[headers$function_code],
-                                                        $unit=headers$uid,
-                                                        $quantity=|coils|,
-                                                        $response_values = bool_vec_to_count_vec(coils)];
+	#cleanup
+	delete modbus_requests[c$id][headers$tid];
+	if(|modbus_requests[c$id]| == 0)
+		delete modbus_requests[c$id];
     }   
+    
+    
+    #local read_discrete_inputs_response: Modbus_Detailed;    
+    
+    #read_discrete_inputs_response$ts                = network_time();
+    #read_discrete_inputs_response$uid               = c$uid;
+    #read_discrete_inputs_response$id                = c$id;
+
+    #read_discrete_inputs_response$is_orig           = F;
+    #read_discrete_inputs_response$source_h          = c$id$resp_h;
+    #read_discrete_inputs_response$source_p          = c$id$resp_p;
+    #read_discrete_inputs_response$destination_h     = c$id$orig_h;
+    #read_discrete_inputs_response$destination_p     = c$id$orig_p;
+
+    #read_discrete_inputs_response$tid               = headers$tid;
+    #read_discrete_inputs_response$unit              = headers$uid;
+    #read_discrete_inputs_response$func              = Modbus::function_codes[headers$function_code];
+    #read_discrete_inputs_response$request_response  = "RESPONSE";
+    #read_discrete_inputs_response$quantity          = |coils|;
+    #read_discrete_inputs_response$values            = coils_to_bools_string (coils);
+
+    #Log::write(LOG_DETAILED, read_discrete_inputs_response);
 }
 
 #############################################################################################################################
@@ -371,27 +433,40 @@ event modbus_read_coils_request(c: connection,
                                 headers: ModbusHeaders,
                                 start_address: count,
                                 quantity: count){
-                            
-    if(response_string in modbus_pending && headers$tid in modbus_pending[response_string]) {
-        local resp = modbus_pending[response_string][headers$tid];
-        resp$matched = T;
-        resp$address = start_address;
-        resp$quantity = quantity;
-        Log::write(LOG_DETAILED, resp);
+    if(c$id !in modbus_requests)
+        modbus_requests[c$id] = table();
 
-        delete modbus_pending[response_string][headers$tid];
-        return;
-    }
-    else {
-        modbus_pending[request_string][headers$tid] = [$ts=network_time(),
-                                                       $uid=c$uid,
-                                                       $id=c$id,
-                                                       $tid=headers$tid,
-                                                       $func=Modbus::function_codes[headers$function_code],
-                                                       $unit=headers$uid,
-                                                       $address=start_address,
-				                                       $quantity=quantity];
-    }
+
+    modbus_requests[c$id][headers$tid] = [$ts=network_time(),
+                                  $uid=c$uid,
+                                  $id=c$id,
+                                  $tid=headers$tid,
+                                  $func=Modbus::function_codes[headers$function_code],
+                                  $unit=headers$uid,
+                                  $address=start_address,
+				  $quantity=quantity];
+
+    
+    #local read_coils_request: Modbus_Detailed;
+
+    #read_coils_request$ts                   = network_time();
+    #read_coils_request$uid                  = c$uid;
+    #read_coils_request$id                   = c$id;
+
+    #read_coils_request$is_orig              = T;
+    #read_coils_request$source_h             = c$id$orig_h;
+    #read_coils_request$source_p             = c$id$orig_p;
+    #read_coils_request$destination_h        = c$id$resp_h;
+    #read_coils_request$destination_p        = c$id$resp_p;
+
+    #read_coils_request$tid                  = headers$tid;
+    #read_coils_request$unit                 = headers$uid;
+    #read_coils_request$func                 = Modbus::function_codes[headers$function_code];
+    #read_coils_request$request_response     = "REQUEST";
+    #read_coils_request$address              = start_address;
+    #read_coils_request$quantity             = quantity;
+
+    #Log::write(LOG_DETAILED, read_coils_request);
 }
 
 #############################################################################################################################
@@ -401,36 +476,42 @@ event modbus_read_coils_response(c: connection,
                                  headers: ModbusHeaders,
                                  coils: ModbusCoils){
 
-    if (request_string in modbus_pending && headers$tid in modbus_pending[request_string]) {        
-        local req = modbus_pending[request_string][headers$tid];
+    if(c$id in modbus_requests && headers$tid in modbus_requests[c$id]) {
+        local req = modbus_requests[c$id][headers$tid];
         local coil_count = req$quantity;
-        local sliced = vector_slice_bool(coils, coil_count, 0);
-	    req$response_values = bool_vec_to_count_vec(sliced);
-        local padding_size: count = |coils| - coil_count;
-        if (padding_size > 0) {
-            local padding_data: string = "";
-            local padding: vector of bool = vector_slice_bool(coils, padding_size, coil_count);
-            local padding_counts: vector of count = bool_vec_to_count_vec(padding);
-            padding_data = counts_to_misc_string(padding_counts);
-            req$response_data = padding_data;  
-        }
+        local sliced = vector_slice_bool(coils, req$address, coil_count); 
+	req$response_counts = bool_vec_to_count_vec(sliced);
+	#req$response_data = coils_to_bools_string(sliced);
         req$matched = T;
 
         Log::write(LOG_DETAILED, req);
 
         #cleanup
-        delete modbus_pending[request_string][headers$tid];
-    }
-    else {
-        modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                        $uid=c$uid,
-                                                        $id=c$id,
-                                                        $tid=headers$tid,
-                                                        $func=Modbus::function_codes[headers$function_code],
-                                                        $unit=headers$uid,
-                                                        $quantity=|coils|,
-                                                        $response_values = bool_vec_to_count_vec(coils)];
-    }
+        delete modbus_requests[c$id][headers$tid];
+        if(|modbus_requests[c$id]| == 0)
+                delete modbus_requests[c$id];
+    }    
+
+    #local read_coils_response: Modbus_Detailed;
+
+    #read_coils_response$ts                  = network_time();
+    #read_coils_response$uid                 = c$uid;
+    #read_coils_response$id                  = c$id;
+
+    #read_coils_response$is_orig             = F;
+    #read_coils_response$source_h            = c$id$resp_h;
+    #read_coils_response$source_p            = c$id$resp_p;
+    #read_coils_response$destination_h       = c$id$orig_h;
+    #read_coils_response$destination_p       = c$id$orig_p;
+
+    #read_coils_response$tid                 = headers$tid;
+    #read_coils_response$unit                = headers$uid;
+    #read_coils_response$func                = Modbus::function_codes[headers$function_code];
+    #read_coils_response$request_response    = "RESPONSE";
+    #read_coils_response$quantity            = |coils|;
+    #read_coils_response$values              = coils_to_bools_string (coils);
+
+    #Log::write(LOG_DETAILED, read_coils_response);
 }
 
 #############################################################################################################################
@@ -440,28 +521,40 @@ event modbus_read_input_registers_request(c: connection,
                                           headers: ModbusHeaders,
                                           start_address: count,
                                           quantity: count) {
+    if(c$id !in modbus_requests)
+        modbus_requests[c$id] = table();
 
-    if(response_string in modbus_pending && headers$tid in modbus_pending[response_string]) {
-        local resp = modbus_pending[response_string][headers$tid];
-        resp$matched = T;
-        resp$address = start_address;
-        resp$quantity = quantity;
-        Log::write(LOG_DETAILED, resp);
 
-        delete modbus_pending[response_string][headers$tid];
-        return;
-    }
+    modbus_requests[c$id][headers$tid] = [$ts=network_time(),
+                                  $uid=c$uid,
+                                  $id=c$id,
+                                  $tid=headers$tid,
+                                  $func=Modbus::function_codes[headers$function_code],
+                                  $unit=headers$uid,
+                                  $address=start_address,
+				  $quantity=quantity];
+                                  
+    
+    #local read_input_request: Modbus_Detailed;
 
-    else {
-        modbus_pending[request_string][headers$tid] = [$ts=network_time(),
-                                                       $uid=c$uid,
-                                                       $id=c$id,
-                                                       $tid=headers$tid,
-                                                       $func=Modbus::function_codes[headers$function_code],
-                                                       $unit=headers$uid,
-                                                       $address=start_address,
-				                                       $quantity=quantity];
-    }
+    #read_input_request$ts                   = network_time();
+    #read_input_request$uid                  = c$uid;
+    #read_input_request$id                   = c$id;
+
+    #read_input_request$is_orig              = T;
+    #read_input_request$source_h             = c$id$orig_h;
+    #read_input_request$source_p             = c$id$orig_p;
+    #read_input_request$destination_h        = c$id$resp_h;
+    #read_input_request$destination_p        = c$id$resp_p;
+
+    #read_input_request$tid                  = headers$tid;
+    #read_input_request$unit                 = headers$uid;
+    #read_input_request$func                 = Modbus::function_codes[headers$function_code];
+    #read_input_request$request_response     = "REQUEST";
+    #read_input_request$address              = start_address;
+    #read_input_request$quantity             = quantity;
+
+    #Log::write(LOG_DETAILED, read_input_request);
 }
 
 #############################################################################################################################
@@ -471,28 +564,44 @@ event modbus_read_input_registers_response(c: connection,
                                            headers: ModbusHeaders,
                                            registers: ModbusRegisters) {
 
-    # local sliced = vector_slice_count(registers, req$address, register_count);
-    if (request_string in modbus_pending && headers$tid in modbus_pending[request_string]) {
-        local req = modbus_pending[request_string][headers$tid];
+    if(c$id in modbus_requests && headers$tid in modbus_requests[c$id]) {
+        local req = modbus_requests[c$id][headers$tid];
         local register_count = req$quantity;
-        req$response_values = registers;
+        local sliced = vector_slice_count(registers, req$address, register_count);
+        req$response_counts = sliced;
+	#local sliced_str = registers_to_counts_string(sliced);
+        #req$response_data = fmt("values=%s", sliced_str);
         req$matched = T;
 
         Log::write(LOG_DETAILED, req);
 
         #cleanup
-        delete modbus_pending[request_string][headers$tid];
+        delete modbus_requests[c$id][headers$tid];
+        if(|modbus_requests[c$id]| == 0)
+                delete modbus_requests[c$id];
     }
-    else {
-        modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                        $uid=c$uid,
-                                                        $id=c$id,
-                                                        $tid=headers$tid,
-                                                        $func=Modbus::function_codes[headers$function_code],
-                                                        $unit=headers$uid,
-                                                        $quantity=|registers|,
-                                                        $response_values = registers];
-    }
+
+
+    #local read_input_response: Modbus_Detailed;
+
+    #read_input_response$ts                  = network_time();
+    #read_input_response$uid                 = c$uid;
+    #read_input_response$id                  = c$id;
+
+    #read_input_response$is_orig             = F;
+    #read_input_response$source_h            = c$id$resp_h;
+    #read_input_response$source_p            = c$id$resp_p;
+    #read_input_response$destination_h       = c$id$orig_h;
+    #read_input_response$destination_p       = c$id$orig_p;
+
+    #read_input_response$tid                 = headers$tid;
+    #read_input_response$unit                = headers$uid;
+    #read_input_response$func                = Modbus::function_codes[headers$function_code];
+    #read_input_response$request_response    = "RESPONSE";
+    #read_input_response$quantity            = |registers|;
+    #read_input_response$values              = registers_to_counts_string (registers);
+
+    #Log::write(LOG_DETAILED, read_input_response);
 }
 
 #############################################################################################################################
@@ -502,28 +611,39 @@ event modbus_read_holding_registers_request(c: connection,
                                             headers: ModbusHeaders,
                                             start_address: count,
                                             quantity: count) {
+ 
+    if(c$id !in modbus_requests)
+        modbus_requests[c$id] = table();
 
 
-    if(response_string in modbus_pending && headers$tid in modbus_pending[response_string]) {
-        local resp = modbus_pending[response_string][headers$tid];
-        resp$matched = T;
-        resp$address = start_address;
-        resp$quantity = quantity;
-        Log::write(LOG_DETAILED, resp);
+    modbus_requests[c$id][headers$tid] = [$ts=network_time(),
+                                  $uid=c$uid,
+                                  $id=c$id,
+                                  $tid=headers$tid,
+                                  $func=Modbus::function_codes[headers$function_code],
+                                  $unit=headers$uid,
+                                  $address=start_address,
+                                  $quantity=quantity];
 
-        delete modbus_pending[response_string][headers$tid];
-        return;
-    }
-    else {
-        modbus_pending[request_string][headers$tid] = [$ts=network_time(),
-                                                       $uid=c$uid,
-                                                       $id=c$id,
-                                                       $tid=headers$tid,
-                                                       $func=Modbus::function_codes[headers$function_code],
-                                                       $unit=headers$uid,
-                                                       $address=start_address,
-                                                       $quantity=quantity];
-    }
+    #local read_holding_request: Modbus_Detailed;
+    #read_holding_request$ts                 = network_time();
+    #read_holding_request$uid                = c$uid;
+    #read_holding_request$id                 = c$id;
+
+    #read_holding_request$is_orig            = T;
+    #read_holding_request$source_h           = c$id$orig_h;
+    #read_holding_request$source_p           = c$id$orig_p;
+    #read_holding_request$destination_h      = c$id$resp_h;
+    #read_holding_request$destination_p      = c$id$resp_p;
+
+    #read_holding_request$tid                = headers$tid;
+    #read_holding_request$unit               = headers$uid;
+    #read_holding_request$func               = Modbus::function_codes[headers$function_code];
+    #read_holding_request$request_response   = "REQUEST";
+    #read_holding_request$address            = start_address;
+    #read_holding_request$quantity           = quantity;
+
+    #Log::write(LOG_DETAILED, read_holding_request);
 }
 
 #############################################################################################################################
@@ -533,28 +653,44 @@ event modbus_read_holding_registers_response(c: connection,
                                              headers: ModbusHeaders,
                                              registers: ModbusRegisters) {
     
-    if (request_string in modbus_pending && headers$tid in modbus_pending[request_string]) {
+    if(c$id in modbus_requests && headers$tid in modbus_requests[c$id]) {
 
-        local req = modbus_pending[request_string][headers$tid];
+        local req = modbus_requests[c$id][headers$tid];
         local register_count = req$quantity; 
-        req$response_values = registers;
+        local sliced = vector_slice_count(registers, req$address, register_count); 
+        req$response_counts = sliced;
+	local sliced_str = registers_to_counts_string(sliced);
+        #req$response_data = fmt("values=%s", sliced_str);
         req$matched = T;
 
         Log::write(LOG_DETAILED, req);
 
-        delete modbus_pending[request_string][headers$tid];
+        #cleanup
+        delete modbus_requests[c$id][headers$tid];
+        if(|modbus_requests[c$id]| == 0)
+                delete modbus_requests[c$id];
     }
 
-    else {
-        modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                        $uid=c$uid,
-                                                        $id=c$id,
-                                                        $tid=headers$tid,
-                                                        $func=Modbus::function_codes[headers$function_code],
-                                                        $unit=headers$uid,
-                                                        $quantity=|registers|,
-                                                        $response_values = registers];
-    }
+    #local read_holding_reg_response: Modbus_Detailed;
+
+    #read_holding_reg_response$ts                = network_time();
+    #read_holding_reg_response$uid               = c$uid;
+    #read_holding_reg_response$id                = c$id;
+
+    #read_holding_reg_response$is_orig           = F;
+    #read_holding_reg_response$source_h          = c$id$resp_h;
+    #read_holding_reg_response$source_p          = c$id$resp_p;
+    #read_holding_reg_response$destination_h     = c$id$orig_h;
+    #read_holding_reg_response$destination_p     = c$id$orig_p;
+
+    #read_holding_reg_response$tid               = headers$tid;
+    #read_holding_reg_response$unit              = headers$uid;
+    #read_holding_reg_response$func              = Modbus::function_codes[headers$function_code];
+    #read_holding_reg_response$request_response  = "RESPONSE";
+    #read_holding_reg_response$quantity          = |registers|;
+    #read_holding_reg_response$values            = registers_to_counts_string (registers);;
+
+    #Log::write(LOG_DETAILED, read_holding_reg_response);
 }
 
 #############################################################################################################################
@@ -563,28 +699,37 @@ event modbus_read_holding_registers_response(c: connection,
 event modbus_read_fifo_queue_request(c: connection,
                                      headers: ModbusHeaders,
                                      start_address: count) {
+    if(c$id !in modbus_requests)
+        modbus_requests[c$id] = table();
 
 
-    if(response_string in modbus_pending && headers$tid in modbus_pending[response_string]) {
-        local resp = modbus_pending[response_string][headers$tid];
-        resp$matched = T;
-        resp$address = start_address;
-        Log::write(LOG_DETAILED, resp);
+    modbus_requests[c$id][headers$tid] = [$ts=network_time(),
+                                  $uid=c$uid,
+                                  $id=c$id,
+                                  $tid=headers$tid,
+                                  $func=Modbus::function_codes[headers$function_code],
+                                  $unit=headers$uid,
+                                  $address=start_address];
+    
+    #local read_fifo_queue_request: Modbus_Detailed;
 
-        delete modbus_pending[response_string][headers$tid];
-        return;
-    }
-                                        
-    else {
-        modbus_pending[request_string][headers$tid] = [$ts=network_time(),
-                                    $uid=c$uid,
-                                    $id=c$id,
-                                    $tid=headers$tid,
-                                    $func=Modbus::function_codes[headers$function_code],
-                                    $unit=headers$uid,
-                                    $address=start_address];
-    }
+    #read_fifo_queue_request$ts                  = network_time();
+    #read_fifo_queue_request$uid                 = c$uid;
+    #read_fifo_queue_request$id                  = c$id;
 
+    #read_fifo_queue_request$is_orig             = T;
+    #read_fifo_queue_request$source_h            = c$id$orig_h;
+    #read_fifo_queue_request$source_p            = c$id$orig_p;
+    #read_fifo_queue_request$destination_h       = c$id$resp_h;
+    #read_fifo_queue_request$destination_p       = c$id$resp_p;
+
+    #read_fifo_queue_request$tid                 = headers$tid;
+    #read_fifo_queue_request$unit                = headers$uid;
+    #read_fifo_queue_request$func                = Modbus::function_codes[headers$function_code];
+    #read_fifo_queue_request$request_response    = "REQUEST";
+    #read_fifo_queue_request$address             = start_address;
+
+    #Log::write(LOG_DETAILED, read_fifo_queue_request);
 }
 
 #############################################################################################################################
@@ -594,41 +739,40 @@ event modbus_read_fifo_queue_response(c: connection,
                                       headers: ModbusHeaders,
                                       fifos: ModbusRegisters) {
 
-    if (request_string in modbus_pending && headers$tid in modbus_pending[request_string]) {
-        local req = modbus_pending[request_string][headers$tid];
-        if (|fifos| > 0){
-            req$response_values=fifos;
-        }
-        req$quantity = |fifos|;
+    if(c$id in modbus_requests && headers$tid in modbus_requests[c$id]) {
+        local req = modbus_requests[c$id][headers$tid];
+        req$response_counts=fifos;
+	#req$response_data = fmt("values=%s", registers_to_counts_string(fifos));
         req$matched = T;
 
         Log::write(LOG_DETAILED, req);
 
         #cleanup
-        delete modbus_pending[request_string][headers$tid];
+        delete modbus_requests[c$id][headers$tid];
+        if(|modbus_requests[c$id]| == 0)
+                delete modbus_requests[c$id];
     }
 
-    else {
-        if (|fifos| > 0){
-            modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                            $uid=c$uid,
-                                                            $id=c$id,
-                                                            $tid=headers$tid,
-                                                            $func=Modbus::function_codes[headers$function_code],
-                                                            $unit=headers$uid,
-                                                            $quantity=|fifos|,
-                                                            $response_values = fifos];
-        }
-        else {
-            modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                            $uid=c$uid,
-                                                            $id=c$id,
-                                                            $tid=headers$tid,
-                                                            $func=Modbus::function_codes[headers$function_code],
-                                                            $unit=headers$uid,
-                                                            $quantity=|fifos|];
-        }
-    }
+    #local read_fifo_queue_response: Modbus_Detailed;
+
+    #read_fifo_queue_response$ts                 = network_time();
+    #read_fifo_queue_response$uid                = c$uid;
+    #read_fifo_queue_response$id                 = c$id;
+
+    #read_fifo_queue_response$is_orig            = F;
+    #read_fifo_queue_response$source_h           = c$id$resp_h;
+    #read_fifo_queue_response$source_p           = c$id$resp_p;
+    #read_fifo_queue_response$destination_h      = c$id$orig_h;
+    #read_fifo_queue_response$destination_p      = c$id$orig_p;
+
+    #read_fifo_queue_response$tid                = headers$tid;
+    #read_fifo_queue_response$unit               = headers$uid;
+    #read_fifo_queue_response$func               = Modbus::function_codes[headers$function_code];
+    #read_fifo_queue_response$request_response   = "RESPONSE";
+    #read_fifo_queue_response$quantity           = |fifos|;
+    #read_fifo_queue_response$values             = registers_to_counts_string (fifos);
+
+    #Log::write(LOG_DETAILED, read_fifo_queue_response);
 }
 
 #############################################################################################################################
@@ -640,31 +784,40 @@ event modbus_write_single_coil_request(c: connection,
                                        address: count,
                                        value: bool) {
 
-    local val: vector of bool = vector(value);
-	local request_values = bool_vec_to_count_vec(val);
+    if(c$id !in modbus_requests)
+    	modbus_requests[c$id] = table();
 
-    if(response_string in modbus_pending && headers$tid in modbus_pending[response_string]) {
-        local resp = modbus_pending[response_string][headers$tid];
-        resp$matched = T;
-        resp$address = address;
-        resp$quantity = 1;
-        resp$request_values = request_values;
-        Log::write(LOG_DETAILED, resp);
 
-        delete modbus_pending[response_string][headers$tid];
-        return;
-    }
-    else {
-        modbus_pending[request_string][headers$tid] = [$ts=network_time(),
-                                                       $uid=c$uid,
-                                                       $id=c$id,
-                                                       $tid=headers$tid,
-                                                       $func=Modbus::function_codes[headers$function_code],
-                                                       $unit=headers$uid,
-                                                       $address=address,
-                                                       $request_values=request_values,
-				                                       $quantity=1];
-    }
+    modbus_requests[c$id][headers$tid] = [$ts=network_time(),
+                                  $uid=c$uid,
+                                  $id=c$id,
+                                  $tid=headers$tid,
+                                  $func=Modbus::function_codes[headers$function_code],
+                                  $unit=headers$uid,
+                                  $address=address,
+				  $quantity=1];
+
+    #local write_single_coil_request: Modbus_Detailed;
+
+    #write_single_coil_request$ts                = network_time();
+    #write_single_coil_request$uid               = c$uid;
+    #write_single_coil_request$id                = c$id;
+
+    #write_single_coil_request$is_orig           = T;
+    #write_single_coil_request$source_h          = c$id$orig_h;
+    #write_single_coil_request$source_p          = c$id$orig_p;
+    #write_single_coil_request$destination_h     = c$id$resp_h;
+    #write_single_coil_request$destination_p     = c$id$resp_p;
+
+    #write_single_coil_request$tid               = headers$tid;
+    #write_single_coil_request$unit              = headers$uid;
+    #write_single_coil_request$func              = Modbus::function_codes[headers$function_code];
+    #write_single_coil_request$request_response  = "REQUEST";
+    #write_single_coil_request$address           = address;
+    #write_single_coil_request$quantity          = 1;
+    #write_single_coil_request$values            = fmt("%s", value);
+
+    #Log::write(LOG_DETAILED, write_single_coil_request);
 }
 
 
@@ -676,30 +829,42 @@ event modbus_write_single_coil_response(c: connection,
                                         address: count,
                                         value: bool) {
 	
-    if (request_string in modbus_pending && headers$tid in modbus_pending[request_string]) {
-     	local req = modbus_pending[request_string][headers$tid];
+     if(c$id in modbus_requests && headers$tid in modbus_requests[c$id]) {
+     	local req = modbus_requests[c$id][headers$tid];
         local val = vector(value);
-	    req$response_values = bool_vec_to_count_vec(val);
-        req$address = address;
-        req$quantity = 1;
+	req$response_counts = bool_vec_to_count_vec(val);
+	#req$response_data = fmt("values=%s", value);
         req$matched = T;
 
         Log::write(LOG_DETAILED, req);
 
         #cleanup
-        delete modbus_pending[request_string][headers$tid];
-    }
-    else {
-        modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                        $uid=c$uid,
-                                                        $id=c$id,
-                                                        $tid=headers$tid,
-                                                        $func=Modbus::function_codes[headers$function_code],
-                                                        $unit=headers$uid,
-                                                        $quantity=1,
-                                                        $address=address,
-                                                        $response_values = bool_vec_to_count_vec(vector(value))];
+        delete modbus_requests[c$id][headers$tid];
+        if(|modbus_requests[c$id]| == 0)
+                delete modbus_requests[c$id];
     }	
+    
+    #local write_single_coil_response: Modbus_Detailed;
+
+    #write_single_coil_response$ts                   = network_time();
+    #write_single_coil_response$uid                  = c$uid;
+    #write_single_coil_response$id                   = c$id;
+
+    #write_single_coil_response$is_orig              = F;
+    #write_single_coil_response$source_h             = c$id$resp_h;
+    #write_single_coil_response$source_p             = c$id$resp_p;
+    #write_single_coil_response$destination_h        = c$id$orig_h;
+    #write_single_coil_response$destination_p        = c$id$orig_p;
+
+    #write_single_coil_response$tid                  = headers$tid;
+    #write_single_coil_response$unit                 = headers$uid;
+    #write_single_coil_response$func                 = Modbus::function_codes[headers$function_code];
+    #write_single_coil_response$request_response     = "RESPONSE";
+    #write_single_coil_response$address              = address;
+    #write_single_coil_response$quantity             = 1;
+    #write_single_coil_response$values               = fmt("%s", value);
+
+    #Log::write(LOG_DETAILED, write_single_coil_response);
 }
 
 #############################################################################################################################
@@ -710,32 +875,40 @@ event modbus_write_single_register_request(c: connection,
                                            address: count,
                                            value: count) {
 
-    local val = vector(value);
-	local request_values: vector of count = val;
-    if(response_string in modbus_pending && headers$tid in modbus_pending[response_string]) {   
-        local resp = modbus_pending[response_string][headers$tid];
-        resp$matched = T;
-        resp$address = address;
-        resp$quantity = 1;
-        resp$request_values = request_values;
-        resp$unit = headers$uid;
-        Log::write(LOG_DETAILED, resp);
+    if(c$id !in modbus_requests)
+        modbus_requests[c$id] = table();
 
-        delete modbus_pending[response_string][headers$tid];
-        return;
-    }
 
-    else {
-        modbus_pending[request_string][headers$tid] = [$ts=network_time(),
-                                                       $uid=c$uid,
-                                                       $id=c$id,
-                                                       $tid=headers$tid,
-                                                       $func=Modbus::function_codes[headers$function_code],
-                                                       $unit=headers$uid,
-                                                       $address=address,
-                                                       $request_values=request_values,
-                                                       $quantity=1];  
-    }  
+    modbus_requests[c$id][headers$tid] = [$ts=network_time(),
+                                  $uid=c$uid,
+                                  $id=c$id,
+                                  $tid=headers$tid,
+                                  $func=Modbus::function_codes[headers$function_code],
+                                  $unit=headers$uid,
+                                  $address=address,
+                                  $quantity=1];    
+
+    #local write_single_register_request: Modbus_Detailed;
+
+    #write_single_register_request$ts                = network_time();
+    #write_single_register_request$uid               = c$uid;
+    #write_single_register_request$id                = c$id;
+
+    #write_single_register_request$is_orig           = T;
+    #write_single_register_request$source_h          = c$id$orig_h;
+    #write_single_register_request$source_p          = c$id$orig_p;
+    #write_single_register_request$destination_h     = c$id$resp_h;
+    #write_single_register_request$destination_p     = c$id$resp_p;
+
+    #write_single_register_request$tid               = headers$tid;
+    #write_single_register_request$unit              = headers$uid;
+    #write_single_register_request$func              = Modbus::function_codes[headers$function_code];
+    #write_single_register_request$request_response  = "REQUEST";
+    #write_single_register_request$address           = address;
+    #write_single_register_request$quantity          = 1;
+    #write_single_register_request$values            = fmt("%d", value);
+
+    #Log::write(LOG_DETAILED, write_single_register_request);
 }
 
 #############################################################################################################################
@@ -746,29 +919,42 @@ event modbus_write_single_register_response(c: connection,
                                             address: count,
                                             value: count) {
 
-    if (request_string in modbus_pending && headers$tid in modbus_pending[request_string]) {
-        local req = modbus_pending[request_string][headers$tid];
+    if(c$id in modbus_requests && headers$tid in modbus_requests[c$id]) {
+        local req = modbus_requests[c$id][headers$tid];
         local val = vector(value);
-	    req$response_values = val;
+	req$response_counts = val;
+	#req$response_data = fmt("values=%s", value);
         req$matched = T;
 
         Log::write(LOG_DETAILED, req);
 
         #cleanup
-        delete modbus_pending[request_string][headers$tid];
+        delete modbus_requests[c$id][headers$tid];
+        if(|modbus_requests[c$id]| == 0)
+                delete modbus_requests[c$id];
+    }
 
-    }
-    else {
-        modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                        $uid=c$uid,
-                                                        $id=c$id,
-                                                        $tid=headers$tid,
-                                                        $func=Modbus::function_codes[headers$function_code],
-                                                        $unit=headers$uid,
-                                                        $quantity=1,
-                                                        $address=address,
-                                                        $response_values = vector(value)];
-    }
+    #local write_single_register_response: Modbus_Detailed;
+
+    #write_single_register_response$ts                   = network_time();
+    #write_single_register_response$uid                  = c$uid;
+    #write_single_register_response$id                   = c$id;
+
+    #write_single_register_response$is_orig              = F;
+    #write_single_register_response$source_h             = c$id$resp_h;
+    #write_single_register_response$source_p             = c$id$resp_p;
+    #write_single_register_response$destination_h        = c$id$orig_h;
+    #write_single_register_response$destination_p        = c$id$orig_p;
+
+    #write_single_register_response$tid                  = headers$tid;
+    #write_single_register_response$unit                 = headers$uid;
+    #write_single_register_response$func                 = Modbus::function_codes[headers$function_code];
+    #write_single_register_response$request_response     = "RESPONSE";
+    #write_single_register_response$address              = address;
+    #write_single_register_response$quantity             = 1;
+    #write_single_register_response$values               = fmt("%d", value);
+
+    #Log::write(LOG_DETAILED, write_single_register_response);
 }
 
 #############################################################################################################################
@@ -779,32 +965,40 @@ event modbus_write_multiple_coils_request(c: connection,
                                           start_address: count,
                                           coils: ModbusCoils) {
 
-    local request_values: vector of count = bool_vec_to_count_vec(coils);
-    if(response_string in modbus_pending && headers$tid in modbus_pending[response_string]) {   
-        local resp = modbus_pending[response_string][headers$tid];
-        resp$matched = T;
-        resp$address = start_address;
-        resp$quantity = |coils|;
-        resp$request_values = request_values;
-        resp$unit = headers$uid;
-        Log::write(LOG_DETAILED, resp);
+    if(c$id !in modbus_requests)
+        modbus_requests[c$id] = table();
 
-        delete modbus_pending[response_string][headers$tid];
-        return;
-    }
 
-    else {
-        modbus_pending[request_string][headers$tid] = [$ts=network_time(),
-                                                       $uid=c$uid,
-                                                       $id=c$id,
-                                                       $tid=headers$tid,
-                                                       $func=Modbus::function_codes[headers$function_code],
-                                                       $unit=headers$uid,
-                                                       $address=start_address,
-                                                       $request_values=request_values,
-                                                       $quantity=|coils|];
-    }
+    modbus_requests[c$id][headers$tid] = [$ts=network_time(),
+                                  $uid=c$uid,
+                                  $id=c$id,
+                                  $tid=headers$tid,
+                                  $func=Modbus::function_codes[headers$function_code],
+                                  $unit=headers$uid,
+                                  $address=start_address,
+                                  $quantity=|coils|];
 
+    #local write_multiple_coils_request: Modbus_Detailed;
+
+    #write_multiple_coils_request$ts                 = network_time();
+    #write_multiple_coils_request$uid                = c$uid;
+    #write_multiple_coils_request$id                 = c$id;
+
+    #write_multiple_coils_request$is_orig            = T;
+    #write_multiple_coils_request$source_h           = c$id$orig_h;
+    #write_multiple_coils_request$source_p           = c$id$orig_p;
+    #write_multiple_coils_request$destination_h      = c$id$resp_h;
+    #write_multiple_coils_request$destination_p      = c$id$resp_p;
+
+    #write_multiple_coils_request$tid                = headers$tid;
+    #write_multiple_coils_request$unit               = headers$uid;
+    #write_multiple_coils_request$func               = Modbus::function_codes[headers$function_code];
+    #write_multiple_coils_request$request_response   = "REQUEST";
+    #write_multiple_coils_request$address            = start_address;
+    #write_multiple_coils_request$quantity           = |coils|;
+    #write_multiple_coils_request$values             = coils_to_bools_string (coils);;
+
+    #Log::write(LOG_DETAILED, write_multiple_coils_request);
 }
 
 #############################################################################################################################
@@ -815,58 +1009,83 @@ event modbus_write_multiple_coils_response(c: connection,
                                            start_address: count,
                                            quantity: count) {
     
-    if (request_string in modbus_pending && headers$tid in modbus_pending[request_string]) {
-        local req = modbus_pending[request_string][headers$tid];
+   if(c$id in modbus_requests && headers$tid in modbus_requests[c$id]) {
+        local req = modbus_requests[c$id][headers$tid];
+        req$response_counts = vector(quantity);
+	#req$response_data = fmt("quantity=%d", quantity);
         req$matched = T;
 
         Log::write(LOG_DETAILED, req);
 
         #cleanup
-        delete modbus_pending[request_string][headers$tid];
+        delete modbus_requests[c$id][headers$tid];
+        if(|modbus_requests[c$id]| == 0)
+                delete modbus_requests[c$id];
     }
 
-    else {
-        modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                        $uid=c$uid,
-                                                        $id=c$id,
-                                                        $tid=headers$tid,
-                                                        $func=Modbus::function_codes[headers$function_code],
-                                                        $unit=headers$uid,
-                                                        $quantity=quantity,
-                                                        $address=start_address];
-    }
+
+    #local write_multiple_coils_response: Modbus_Detailed;
+
+    #write_multiple_coils_response$ts                = network_time();
+    #write_multiple_coils_response$uid               = c$uid;
+    #write_multiple_coils_response$id                = c$id;
+
+    #write_multiple_coils_response$is_orig           = F;
+    #write_multiple_coils_response$source_h          = c$id$resp_h;
+    #write_multiple_coils_response$source_p          = c$id$resp_p;
+    #write_multiple_coils_response$destination_h     = c$id$orig_h;
+    #write_multiple_coils_response$destination_p     = c$id$orig_p;
+
+    #write_multiple_coils_response$tid               = headers$tid;
+    #write_multiple_coils_response$unit              = headers$uid;
+    #write_multiple_coils_response$func              = Modbus::function_codes[headers$function_code];
+    #write_multiple_coils_response$request_response  = "RESPONSE";
+    #write_multiple_coils_response$address           = start_address;
+    #write_multiple_coils_response$quantity          = quantity;
+
+    #Log::write(LOG_DETAILED, write_multiple_coils_response);
 }
 
 #############################################################################################################################
 #################  Defines logging of modbus_write_multiple_registers_request event -> modbus_detailed.log  #################
 #############################################################################################################################
-event modbus_write_multiple_registers_request(c: connection,
+event modbus_write_multiple_registers_response(c: connection,
                                                headers: ModbusHeaders,
                                                start_address: count,
-                                               registers: ModbusRegisters) {
-    if(response_string in modbus_pending && headers$tid in modbus_pending[response_string]) {
-        local resp = modbus_pending[response_string][headers$tid];
-        resp$matched = T;
-        resp$address = start_address;
-        resp$quantity = |registers|;
-        resp$request_values = registers;
-        resp$unit = headers$uid;
-        Log::write(LOG_DETAILED, resp);
+                                               quantity: count) {
+    if(c$id !in modbus_requests)
+        modbus_requests[c$id] = table();
 
-        delete modbus_pending[response_string][headers$tid];
-        return;
-    }
-    else {
-        modbus_pending[request_string][headers$tid] = [$ts=network_time(),
-                                                       $uid=c$uid,
-                                                       $id=c$id,
-                                                       $tid=headers$tid,
-                                                       $func=Modbus::function_codes[headers$function_code],
-                                                       $unit=headers$uid,
-                                                       $address=start_address,
-                                                       $request_values=registers,
-                                                       $quantity=|registers|];
-    }
+
+    modbus_requests[c$id][headers$tid] = [$ts=network_time(),
+                                  $uid=c$uid,
+                                  $id=c$id,
+                                  $tid=headers$tid,
+                                  $func=Modbus::function_codes[headers$function_code],
+                                  $unit=headers$uid,
+                                  $address=start_address,
+                                  $quantity=quantity];
+
+    #local write_multiple_registers_response: Modbus_Detailed;
+
+    #write_multiple_registers_response$ts                = network_time();
+    #write_multiple_registers_response$uid               = c$uid;
+    #write_multiple_registers_response$id                = c$id;
+
+    #write_multiple_registers_response$is_orig           = F;
+    #write_multiple_registers_response$source_h          = c$id$resp_h;
+    #write_multiple_registers_response$source_p          = c$id$resp_p;
+    #write_multiple_registers_response$destination_h     = c$id$orig_h;
+    #write_multiple_registers_response$destination_p     = c$id$orig_p;
+
+    #write_multiple_registers_response$tid               = headers$tid;
+    #write_multiple_registers_response$unit              = headers$uid;
+    #write_multiple_registers_response$func              = Modbus::function_codes[headers$function_code];
+    #write_multiple_registers_response$request_response  = "RESPONSE";
+    #write_multiple_registers_response$address           = start_address;
+    #write_multiple_registers_response$quantity          = quantity;
+
+    #Log::write(LOG_DETAILED, write_multiple_registers_response);
 }
 
 #############################################################################################################################
@@ -877,28 +1096,41 @@ event modbus_write_multiple_registers_response(c: connection,
                                                start_address: count,
                                                quantity: count) {
     
-    if (request_string in modbus_pending && headers$tid in modbus_pending[request_string]) {
-        local req = modbus_pending[request_string][headers$tid];
-        req$quantity = quantity;
+   if(c$id in modbus_requests && headers$tid in modbus_requests[c$id]) {
+        local req = modbus_requests[c$id][headers$tid];
+        req$response_counts = vector(start_address);
+	#req$response_data = fmt("start address=%s", start_address);
         req$matched = T;
-        req$address = start_address;
+	#are we missing values here because request should have registers value??
 
         Log::write(LOG_DETAILED, req);
 
         #cleanup
-        delete modbus_pending[request_string][headers$tid];
-    }
-    else {
-        modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                        $uid=c$uid,
-                                                        $id=c$id,
-                                                        $tid=headers$tid,
-                                                        $func=Modbus::function_codes[headers$function_code],
-                                                        $unit=headers$uid,
-                                                        $quantity=quantity,
-                                                        $address=start_address];
+        delete modbus_requests[c$id][headers$tid];
+        if(|modbus_requests[c$id]| == 0)
+                delete modbus_requests[c$id];
     }
 
+    #local write_multiple_registers_response: Modbus_Detailed;
+
+    #write_multiple_registers_response$ts                = network_time();
+    #write_multiple_registers_response$uid               = c$uid;
+    #write_multiple_registers_response$id                = c$id;
+
+    #write_multiple_registers_response$is_orig           = F;
+    #write_multiple_registers_response$source_h          = c$id$resp_h;
+    #write_multiple_registers_response$source_p          = c$id$resp_p;
+    #write_multiple_registers_response$destination_h     = c$id$orig_h;
+    #write_multiple_registers_response$destination_p     = c$id$orig_p;
+
+    #write_multiple_registers_response$tid               = headers$tid;
+    #write_multiple_registers_response$unit              = headers$uid;
+    #write_multiple_registers_response$func              = Modbus::function_codes[headers$function_code];
+    #write_multiple_registers_response$request_response  = "RESPONSE";
+    #write_multiple_registers_response$address           = start_address;
+    #write_multiple_registers_response$quantity          = quantity;
+
+    #Log::write(LOG_DETAILED, write_multiple_registers_response);
 }
 
 #############################################################################################################################
@@ -926,35 +1158,47 @@ event modbus_read_write_multiple_registers_request(c: connection,
     read_write_multiple_registers_request$destination_h             = c$id$resp_h;
     read_write_multiple_registers_request$destination_p             = c$id$resp_p;
 
-    read_write_multiple_registers_request$tid                       = headers$tid;
-    read_write_multiple_registers_request$unit                      = headers$uid;
-    read_write_multiple_registers_request$func                      = Modbus::function_codes[headers$function_code];
-    read_write_multiple_registers_request$request_response          = "REQUEST";
-    read_write_multiple_registers_request$read_start_address        = read_start_address;
-    read_write_multiple_registers_request$read_quantity             = read_quantity;
-    read_write_multiple_registers_request$write_start_address       = write_start_address;
-    read_write_multiple_registers_request$write_registers           = write_registers;
-    read_write_multiple_registers_request$modbus_detailed_link_id   = modbus_connection_id;
+    read_write_multiple_registers_request$tid                  = headers$tid;
+    read_write_multiple_registers_request$unit                 = headers$uid;
+    read_write_multiple_registers_request$func                 = Modbus::function_codes[headers$function_code];
+    read_write_multiple_registers_request$request_response     = "REQUEST";
+    read_write_multiple_registers_request$read_start_address   = read_start_address;
+    read_write_multiple_registers_request$read_quantity        = read_quantity;
+    read_write_multiple_registers_request$write_start_address  = write_start_address;
+    read_write_multiple_registers_request$write_registers      = write_registers;
 
     Log::write(LOG_READ_WRITE_MULTIPLE_REGISTERS, read_write_multiple_registers_request);
 
-    if(response_string in modbus_pending && headers$tid in modbus_pending[response_string]) {
-        local resp = modbus_pending[response_string][headers$tid];
-        resp$matched = T;
+    if(c$id !in modbus_requests)
+        modbus_requests[c$id] = table();
 
-        Log::write(LOG_DETAILED, resp);
-        delete modbus_pending[response_string][headers$tid];
-        return;
-    }
-    else {
-        modbus_pending[request_string][headers$tid] = [$ts=network_time(),
-                                                       $uid=c$uid,
-                                                       $id=c$id,
-                                                       $tid=headers$tid,
-                                                       $func=Modbus::function_codes[headers$function_code],
-                                                       $unit=headers$uid,
-                                                       $modbus_detailed_link_id=modbus_connection_id]; 
-    }   
+
+    modbus_requests[c$id][headers$tid] = [$ts=network_time(),
+                                  $uid=c$uid,
+                                  $id=c$id,
+                                  $tid=headers$tid,
+                                  $func=Modbus::function_codes[headers$function_code],
+                                  $unit=headers$uid];    
+
+    #local read_write_multiple_registers_request_detailed: Modbus_Detailed;
+
+    #read_write_multiple_registers_request_detailed$ts                   = network_time();
+    #read_write_multiple_registers_request_detailed$uid                  = c$uid;
+    #read_write_multiple_registers_request_detailed$id                   = c$id;
+
+    #read_write_multiple_registers_request_detailed$is_orig              = T;
+    #read_write_multiple_registers_request_detailed$source_h             = c$id$orig_h;
+    #read_write_multiple_registers_request_detailed$source_p             = c$id$orig_p;
+    #read_write_multiple_registers_request_detailed$destination_h        = c$id$resp_h;
+    #read_write_multiple_registers_request_detailed$destination_p        = c$id$resp_p;
+
+    #read_write_multiple_registers_request_detailed$tid                  = headers$tid;
+    #read_write_multiple_registers_request_detailed$unit                 = headers$uid;
+    #read_write_multiple_registers_request_detailed$func                 = Modbus::function_codes[headers$function_code];
+    #read_write_multiple_registers_request_detailed$request_response     = "REQUEST";
+    #read_write_multiple_registers_request_detailed$values               = "see modbus_read_write_multiple_registers.log";
+
+    #Log::write(LOG_DETAILED, read_write_multiple_registers_request_detailed);
 }
 
 #############################################################################################################################
@@ -966,7 +1210,6 @@ event modbus_read_write_multiple_registers_response(c: connection,
                                                     written_registers: ModbusRegisters) {
 
     local read_write_multiple_registers_response: Read_Write_Multiple_Registers;
-    local modbus_connection_id: string = "";
 
     read_write_multiple_registers_response$ts                   = network_time();
     read_write_multiple_registers_response$uid                  = c$uid;
@@ -983,30 +1226,42 @@ event modbus_read_write_multiple_registers_response(c: connection,
     read_write_multiple_registers_response$func                 = Modbus::function_codes[headers$function_code];
     read_write_multiple_registers_response$request_response     = "RESPONSE";
     read_write_multiple_registers_response$read_registers       = written_registers;
-  
+    
+    Log::write(LOG_READ_WRITE_MULTIPLE_REGISTERS, read_write_multiple_registers_response);
 
-    if (request_string in modbus_pending && headers$tid in modbus_pending[request_string]) { {
-        local req = modbus_pending[request_string][headers$tid];
+
+    if(c$id in modbus_requests && headers$tid in modbus_requests[c$id]) {
+        local req = modbus_requests[c$id][headers$tid];
+        req$misc = "see modbus_read_write_multiple_registers.log";
         req$matched = T;
-        modbus_connection_id = req$modbus_detailed_link_id;
 
         Log::write(LOG_DETAILED, req);
 
         #cleanup
-        delete modbus_pending[request_string][headers$tid];
-        } 
-    }
-    else {
-        modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                        $uid=c$uid,
-                                                        $id=c$id,
-                                                        $tid=headers$tid,
-                                                        $func=Modbus::function_codes[headers$function_code],
-                                                        $unit=headers$uid,
-                                                        $modbus_detailed_link_id=modbus_connection_id];
-    }
-    read_write_multiple_registers_response$modbus_detailed_link_id = modbus_connection_id;
-    Log::write(LOG_READ_WRITE_MULTIPLE_REGISTERS, read_write_multiple_registers_response);
+        delete modbus_requests[c$id][headers$tid];
+        if(|modbus_requests[c$id]| == 0)
+                delete modbus_requests[c$id];
+    }    
+
+    #local read_write_multiple_registers_response_detailed: Modbus_Detailed;
+
+    #read_write_multiple_registers_response_detailed$ts                   = network_time();
+    #read_write_multiple_registers_response_detailed$uid                  = c$uid;
+    #read_write_multiple_registers_response_detailed$id                   = c$id;
+
+    #read_write_multiple_registers_response_detailed$is_orig              = F;
+    #read_write_multiple_registers_response_detailed$source_h             = c$id$resp_h;
+    #read_write_multiple_registers_response_detailed$source_p             = c$id$resp_p;
+    #read_write_multiple_registers_response_detailed$destination_h        = c$id$orig_h;
+    #read_write_multiple_registers_response_detailed$destination_p        = c$id$orig_p;
+
+    #read_write_multiple_registers_response_detailed$tid                  = headers$tid;
+    #read_write_multiple_registers_response_detailed$unit                 = headers$uid;
+    #read_write_multiple_registers_response_detailed$func                 = Modbus::function_codes[headers$function_code];
+    #read_write_multiple_registers_response_detailed$request_response     = "RESPONSE";
+    #read_write_multiple_registers_response_detailed$values               = "see modbus_read_write_multiple_registers.log";
+
+    #Log::write(LOG_DETAILED, read_write_multiple_registers_response_detailed);
 }
 
 #############################################################################################################################
@@ -1019,51 +1274,62 @@ event modbus_read_file_record_request(c: connection,
                                       byte_count: count,
                                       refs: ModbusFileRecordRequests)
 {
-    if(response_string in modbus_pending && headers$tid in modbus_pending[response_string]) {   
-        local resp = modbus_pending[response_string][headers$tid];
-        resp$matched = T;
-        resp$quantity=|refs|;
+    if ( c$id !in modbus_requests )
+        modbus_requests[c$id] = table();
 
-        Log::write(LOG_DETAILED, resp);
-
-        delete modbus_pending[response_string][headers$tid];
-        return;
-    }
-    else {
-        modbus_pending[request_string][headers$tid] = [$ts=network_time(),
-                                                       $uid=c$uid,
-                                                       $id=c$id,
-                                                       $tid=headers$tid,
-                                                       $func=Modbus::function_codes[headers$function_code],
-                                                       $unit=headers$uid,
-                                                       $quantity=|refs|];
-    }
+    modbus_requests[c$id][headers$tid] = [$ts=network_time(),
+                                          $uid=c$uid,
+                                          $id=c$id,
+                                          $tid=headers$tid,
+                                          $func=Modbus::function_codes[headers$function_code],
+                                          $unit=headers$uid,
+					  $quantity=|refs|];
 }
 @else
 event modbus_read_file_record_request(c: connection,
                                       headers: ModbusHeaders)
 {
-    if(response_string in modbus_pending && headers$tid in modbus_pending[response_string]) {   
-        local resp = modbus_pending[response_string][headers$tid];
-        resp$matched = T;
+    if ( c$id !in modbus_requests )
+        modbus_requests[c$id] = table();
 
-        Log::write(LOG_DETAILED, resp);
-
-        delete modbus_pending[response_string][headers$tid];
-        return;
-    }
-
-    else {
-        modbus_pending[request_string][headers$tid] = [$ts=network_time(),
-                                                       $uid=c$uid,
-                                                       $id=c$id,
-                                                       $tid=headers$tid,
-                                                       $func=Modbus::function_codes[headers$function_code],
-                                                       $unit=headers$uid];
-    }
+    modbus_requests[c$id][headers$tid] = [$ts=network_time(),
+                                          $uid=c$uid,
+                                          $id=c$id,
+                                          $tid=headers$tid,
+                                          $func=Modbus::function_codes[headers$function_code],
+                                          $unit=headers$uid];
 }
 @endif
 
+#@if (Version::at_least("6.1.0"))
+#event modbus_read_file_record_request(c: connection,
+#                                      headers: ModbusHeaders,
+#                                      byte_count: count,
+#                                      refs: ModbusFileRecordRequests)
+#@else
+#event modbus_read_file_record_request(c: connection,
+#                                      headers: ModbusHeaders)
+#@endif
+#{
+    #local read_file_record_request: Modbus_Detailed;
+
+    #read_file_record_request$ts                 = network_time();
+    #read_file_record_request$uid                = c$uid;
+    #read_file_record_request$id                 = c$id;
+
+    #read_file_record_request$is_orig            = T;
+    #read_file_record_request$source_h           = c$id$orig_h;
+    #read_file_record_request$source_p           = c$id$orig_p;
+    #read_file_record_request$destination_h      = c$id$resp_h;
+    #read_file_record_request$destination_p      = c$id$resp_p;
+
+    #read_file_record_request$tid                = headers$tid;
+    #read_file_record_request$unit               = headers$uid;
+    #read_file_record_request$func               = Modbus::function_codes[headers$function_code];
+    #read_file_record_request$request_response   = "REQUEST";
+
+    #Log::write(LOG_DETAILED, read_file_record_request);
+#}
 
 #############################################################################################################################
 ####################  Defines logging of modbus_read_file_record_response event -> modbus_detailed.log  #####################
@@ -1075,71 +1341,80 @@ event modbus_read_file_record_response(c: connection,
                                        byte_count: count,
                                        refs: ModbusFileRecordResponses)
 {
-    local response_data = "";
-    for ( i in refs )
+    if ( c$id in modbus_requests && headers$tid in modbus_requests[c$id] )
     {
-        local ref_str = fmt("%s", refs[i]);
-        response_data = response_data == "" ? ref_str : fmt("%s | %s", response_data, ref_str);
-    }
-    if (request_string in modbus_pending && headers$tid in modbus_pending[request_string])
-    {
-        local req = modbus_pending[request_string][headers$tid];
+        local req = modbus_requests[c$id][headers$tid];
 
         # Build response_data from refs
-        if (response_data != "") {
-            req$response_data = response_data;
-        } 
-    
+        local response_data = "";
+        for ( i in refs )
+        {
+	    local ref_str = fmt("%s", refs[i]);
+	    response_data = response_data == "" ? ref_str : fmt("%s | %s", response_data, ref_str);
+	    #local r = refs[i];
+            #local s = fmt("%s,%s", r$record_length, r$file_number);
+            #response_data = response_data == "" ? s : fmt("%s | %s", response_data, s);
+        }
+
+        req$misc = response_data;
         req$matched = T;
 
         Log::write(LOG_DETAILED, req);
 
-        delete modbus_pending[request_string][headers$tid];
-    }
-    else {
-        if (response_data != "") {
-            modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                            $uid=c$uid,
-                                                            $id=c$id,
-                                                            $tid=headers$tid,
-                                                            $func=Modbus::function_codes[headers$function_code],
-                                                            $unit=headers$uid,
-                                                            $response_data=response_data];
-        }
-        else {
-            modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                            $uid=c$uid,
-                                                            $id=c$id,
-                                                            $tid=headers$tid,
-                                                            $func=Modbus::function_codes[headers$function_code],
-                                                            $unit=headers$uid];
-        }
+        delete modbus_requests[c$id][headers$tid];
+        if ( |modbus_requests[c$id]| == 0 )
+            delete modbus_requests[c$id];
     }
 }
 @else
 event modbus_read_file_record_response(c: connection,
                                        headers: ModbusHeaders)
 {
-    if ( request_string in modbus_pending && headers$tid in modbus_pending[request_string] )
+    if ( c$id in modbus_requests && headers$tid in modbus_requests[c$id] )
     {
-        local req = modbus_pending[request_string][headers$tid];
+        local req = modbus_requests[c$id][headers$tid];
 
+        req$misc = "no detailed refs available";
         req$matched = T;
 
         Log::write(LOG_DETAILED, req);
 
-        delete modbus_pending[request_string][headers$tid];
-    }
-    else {
-        modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                        $uid=c$uid,
-                                                        $id=c$id,
-                                                        $tid=headers$tid,
-                                                        $func=Modbus::function_codes[headers$function_code],
-                                                        $unit=headers$uid];
+        delete modbus_requests[c$id][headers$tid];
+        if ( |modbus_requests[c$id]| == 0 )
+            delete modbus_requests[c$id];
     }
 }
 @endif
+
+#@if (Version::at_least("6.1.0"))
+#event modbus_read_file_record_response(c: connection,
+#                                       headers: ModbusHeaders,
+#                                       byte_count: count,
+#                                       refs: ModbusFileRecordResponses)
+#@else
+#event modbus_read_file_record_response(c: connection,
+#                                       headers: ModbusHeaders)
+#@endif
+#{
+    #local read_file_record_response: Modbus_Detailed;
+
+    #read_file_record_response$ts                = network_time();
+    #read_file_record_response$uid               = c$uid;
+    #read_file_record_response$id                = c$id;
+
+    #read_file_record_response$is_orig           = F;
+    #read_file_record_response$source_h          = c$id$resp_h;
+    #read_file_record_response$source_p          = c$id$resp_p;
+    #read_file_record_response$destination_h     = c$id$orig_h;
+    #read_file_record_response$destination_p     = c$id$orig_p;
+
+    #read_file_record_response$tid               = headers$tid;
+    #read_file_record_response$unit              = headers$uid;
+    #read_file_record_response$func              = Modbus::function_codes[headers$function_code];
+    #read_file_record_response$request_response  = "RESPONSE";
+
+    #Log::write(LOG_DETAILED, read_file_record_response);
+#}
 
 #############################################################################################################################
 ####################  Defines logging of modbus_write_file_record_request event -> modbus_detailed.log  #####################
@@ -1150,50 +1425,55 @@ event modbus_write_file_record_request(c: connection,
                                        byte_count: count,
                                        refs: ModbusFileReferences) 
 {
-    
-    if(response_string in modbus_pending && headers$tid in modbus_pending[response_string]) {   
-        local resp = modbus_pending[response_string][headers$tid];
-        resp$matched = T;
-        resp$quantity=|refs|;
+    if ( c$id !in modbus_requests )
+        modbus_requests[c$id] = table();
 
-        Log::write(LOG_DETAILED, resp);
+    modbus_requests[c$id][headers$tid] = [$ts=network_time(),
+                                          $uid=c$uid,
+                                          $id=c$id,
+                                          $tid=headers$tid,
+                                          $func=Modbus::function_codes[headers$function_code],
+                                          $unit=headers$uid,
+                                          $quantity=|refs|];
 
-        delete modbus_pending[response_string][headers$tid];
-        return;
-    }
-    else {
-        modbus_pending[request_string][headers$tid] = [$ts=network_time(),
-                                                       $uid=c$uid,
-                                                       $id=c$id,
-                                                       $tid=headers$tid,
-                                                       $func=Modbus::function_codes[headers$function_code],
-                                                       $unit=headers$uid,
-                                                       $quantity=|refs|];
-    }
 }
 @else
 event modbus_write_file_record_request(c: connection,
                                        headers: ModbusHeaders)
 {
-    if(response_string in modbus_pending && headers$tid in modbus_pending[response_string]) {   
-        local resp = modbus_pending[response_string][headers$tid];
-        resp$matched = T;
-        Log::write(LOG_DETAILED, resp);
+   if ( c$id !in modbus_requests )
+        modbus_requests[c$id] = table();
 
-        delete modbus_pending[response_string][headers$tid];
-        return;
-    }
-
-    else {
-        modbus_pending[request_string][headers$tid] = [$ts=network_time(),
-                                                       $uid=c$uid,
-                                                       $id=c$id,
-                                                       $tid=headers$tid,
-                                                       $func=Modbus::function_codes[headers$function_code],
-                                                       $unit=headers$uid];
-    }
+    modbus_requests[c$id][headers$tid] = [$ts=network_time(),
+                                          $uid=c$uid,
+                                          $id=c$id,
+                                          $tid=headers$tid,
+                                          $func=Modbus::function_codes[headers$function_code],
+                                          $unit=headers$uid];
 }
 @endif
+
+#{
+
+#    local write_file_record_request: Modbus_Detailed;
+
+#    write_file_record_request$ts                = network_time();
+#    write_file_record_request$uid               = c$uid;
+#    write_file_record_request$id                = c$id;
+
+#    write_file_record_request$is_orig           = T;
+#    write_file_record_request$source_h          = c$id$orig_h;
+#    write_file_record_request$source_p          = c$id$orig_p;
+#    write_file_record_request$destination_h     = c$id$resp_h;
+#    write_file_record_request$destination_p     = c$id$resp_p;
+
+#    write_file_record_request$tid               = headers$tid;
+#    write_file_record_request$unit              = headers$uid;
+#    write_file_record_request$func              = Modbus::function_codes[headers$function_code];
+#    write_file_record_request$request_response  = "REQUEST";
+
+#    Log::write(LOG_DETAILED, write_file_record_request);
+#}
 
 #############################################################################################################################
 ###################  Defines logging of modbus_write_file_record_response event -> modbus_detailed.log  #####################
@@ -1204,47 +1484,29 @@ event modbus_write_file_record_response(c: connection,
                                         byte_count: count,
                                         refs: ModbusFileReferences)
 {
-
-    # Build response_data from refs
-    local response_data = "";
-    for ( i in refs )
+   if ( c$id in modbus_requests && headers$tid in modbus_requests[c$id] )
     {
-        local ref_str = fmt("%s", refs[i]);
-        response_data = response_data == "" ? ref_str : fmt("%s | %s", response_data, ref_str);
-    }
+        local req = modbus_requests[c$id][headers$tid];
 
-    if (request_string in modbus_pending && headers$tid in modbus_pending[request_string])
-    {
-        local req = modbus_pending[request_string][headers$tid];
-
-        if (response_data != "") {
-            req$response_data = response_data;
+        # Build response_data from refs
+        local response_data = "";
+        for ( i in refs )
+        {
+            local ref_str = fmt("%s", refs[i]);
+            response_data = response_data == "" ? ref_str : fmt("%s | %s", response_data, ref_str);
+            #local r = refs[i];
+            #local s = fmt("%s,%s", r$record_length, r$file_number);
+            #response_data = response_data == "" ? s : fmt("%s | %s", response_data, s);
         }
+
+        req$misc = response_data;
         req$matched = T;
 
         Log::write(LOG_DETAILED, req);
 
-        delete modbus_pending[request_string][headers$tid];
-    }
-
-    else {
-        if (response_data == "") {
-            modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                            $uid=c$uid,
-                                                            $id=c$id,
-                                                            $tid=headers$tid,
-                                                            $func=Modbus::function_codes[headers$function_code],
-                                                            $unit=headers$uid,
-                                                            $response_data=response_data];
-        }
-        else {
-            modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                            $uid=c$uid,
-                                                            $id=c$id,
-                                                            $tid=headers$tid,
-                                                            $func=Modbus::function_codes[headers$function_code],
-                                                            $unit=headers$uid];
-        }
+        delete modbus_requests[c$id][headers$tid];
+        if ( |modbus_requests[c$id]| == 0 )
+            delete modbus_requests[c$id];
     }
 
 }
@@ -1252,30 +1514,44 @@ event modbus_write_file_record_response(c: connection,
 event modbus_write_file_record_response(c: connection,
                                         headers: ModbusHeaders)
 {
-    if (request_string in modbus_pending && headers$tid in modbus_pending[request_string])
+    if ( c$id in modbus_requests && headers$tid in modbus_requests[c$id] )
     {
-        local req = modbus_pending[request_string][headers$tid];
+        local req = modbus_requests[c$id][headers$tid];
 
+        req$misc = "no detailed refs available";
         req$matched = T;
 
         Log::write(LOG_DETAILED, req);
 
-        delete modbus_pending[request_string][headers$tid];
-    }
-
-    else {
-        modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                        $uid=c$uid,
-                                                        $id=c$id,
-                                                        $tid=headers$tid,
-                                                        $func=Modbus::function_codes[headers$function_code],
-                                                        $unit=headers$uid];
+        delete modbus_requests[c$id][headers$tid];
+        if ( |modbus_requests[c$id]| == 0 )
+            delete modbus_requests[c$id];
     }
 
 }
 @endif
 
+#{
 
+#    local write_file_record_response: Modbus_Detailed;
+
+#    write_file_record_response$ts                   = network_time();
+#    write_file_record_response$uid                  = c$uid;
+#    write_file_record_response$id                   = c$id;
+
+#    write_file_record_response$is_orig              = F;
+#    write_file_record_response$source_h             = c$id$resp_h;
+#    write_file_record_response$source_p             = c$id$resp_p;
+#    write_file_record_response$destination_h        = c$id$orig_h;
+#    write_file_record_response$destination_p        = c$id$orig_p;
+
+#    write_file_record_response$tid                  = headers$tid;
+#    write_file_record_response$unit                 = headers$uid;
+#    write_file_record_response$func                 = Modbus::function_codes[headers$function_code];
+#    write_file_record_response$request_response     = "RESPONSE";
+
+#    Log::write(LOG_DETAILED, write_file_record_response);
+#}
 
 #############################################################################################################################
 #################  Defines logging of modbus_mask_write_register_request event -> mask_write_register.log  ##################
@@ -1288,48 +1564,56 @@ event modbus_mask_write_register_request(c: connection,
                                          or_mask: count) {
 
     local mask_write_register_request: Mask_Write_Register;
-    local modbus_connection_id: string = generate_uid();
+
+    mask_write_register_request$ts                  = network_time();
+    mask_write_register_request$uid                 = c$uid;
+    mask_write_register_request$id                  = c$id;
 
     mask_write_register_request$ts                      = network_time();
     mask_write_register_request$uid                     = c$uid;
     mask_write_register_request$id                      = c$id;
 
-    mask_write_register_request$is_orig                 = T;
-    mask_write_register_request$source_h                = c$id$orig_h;
-    mask_write_register_request$source_p                = c$id$orig_p;
-    mask_write_register_request$destination_h           = c$id$resp_h;
-    mask_write_register_request$destination_p           = c$id$resp_p;
-
-    mask_write_register_request$tid                     = headers$tid;
-    mask_write_register_request$unit                    = headers$uid;
-    mask_write_register_request$func                    = Modbus::function_codes[headers$function_code];
-    mask_write_register_request$request_response        = "REQUEST";
-    mask_write_register_request$address                 = address;
-    mask_write_register_request$and_mask                = and_mask;
-    mask_write_register_request$or_mask                 = or_mask;
-    mask_write_register_request$modbus_detailed_link_id = modbus_connection_id;
+    mask_write_register_request$tid                 = headers$tid;
+    mask_write_register_request$unit                = headers$uid;
+    mask_write_register_request$func                = Modbus::function_codes[headers$function_code];
+    mask_write_register_request$request_response    = "REQUEST";
+    mask_write_register_request$address             = address;
+    mask_write_register_request$and_mask            = and_mask;
+    mask_write_register_request$or_mask             = or_mask;
 
     Log::write(LOG_MASK_WRITE_REGISTER, mask_write_register_request);    
 
-    
-    if (response_string in modbus_pending && headers$tid in modbus_pending[response_string]) {
-        local resp = modbus_pending[response_string][headers$tid];
-        resp$matched = T;
+    if(c$id !in modbus_requests)
+        modbus_requests[c$id] = table();
 
-        Log::write(LOG_DETAILED, resp);
-        delete modbus_pending[response_string][headers$tid];
-        return;
-    }
-    else {
-        modbus_pending[request_string][headers$tid] = [$ts=network_time(),
-                                                       $uid=c$uid,
-                                                       $id=c$id,
-                                                       $tid=headers$tid,
-                                                       $func=Modbus::function_codes[headers$function_code],
-                                                       $unit=headers$uid,
-                                                       $address=address,
-                                                       $modbus_detailed_link_id=modbus_connection_id];
-    }
+
+    modbus_requests[c$id][headers$tid] = [$ts=network_time(),
+                                  $uid=c$uid,
+                                  $id=c$id,
+                                  $tid=headers$tid,
+                                  $func=Modbus::function_codes[headers$function_code],
+                                  $unit=headers$uid,
+                                  $address=address];
+   
+    #local mask_write_register_request_detailed: Modbus_Detailed;
+     
+    #mask_write_register_request_detailed$ts                  = network_time();
+    #mask_write_register_request_detailed$uid                 = c$uid;
+    #mask_write_register_request_detailed$id                  = c$id;
+
+    #mask_write_register_request_detailed$is_orig             = T;
+    #mask_write_register_request_detailed$source_h            = c$id$orig_h;
+    #mask_write_register_request_detailed$source_p            = c$id$orig_p;
+    #mask_write_register_request_detailed$destination_h       = c$id$resp_h;
+    #mask_write_register_request_detailed$destination_p       = c$id$resp_p;
+
+    #mask_write_register_request_detailed$tid                 = headers$tid;
+    #mask_write_register_request_detailed$unit                = headers$uid;
+    #mask_write_register_request_detailed$func                = Modbus::function_codes[headers$function_code];
+    #mask_write_register_request_detailed$request_response    = "REQUEST";
+    #mask_write_register_request_detailed$values              = "see modbus_mask_write_register.log";
+
+    #Log::write(LOG_DETAILED, mask_write_register_request_detailed);
 }
 
 #############################################################################################################################
@@ -1343,9 +1627,7 @@ event modbus_mask_write_register_response(c: connection,
                                           or_mask: count) {
 
     local mask_write_register_response: Mask_Write_Register;
-    local modbus_connection_id: string = "";
-
-    mask_write_register_response$ts                 = network_time();
+    
     mask_write_register_response$uid                = c$uid;
     mask_write_register_response$id                 = c$id;
 
@@ -1363,33 +1645,40 @@ event modbus_mask_write_register_response(c: connection,
     mask_write_register_response$and_mask           = and_mask;
     mask_write_register_response$or_mask            = or_mask;
 
-    if (request_string in modbus_pending && headers$tid in modbus_pending[request_string]) {
-        local req = modbus_pending[request_string][headers$tid];
-        
+    if(c$id in modbus_requests && headers$tid in modbus_requests[c$id]) {
+        local req = modbus_requests[c$id][headers$tid];
+        req$misc = "see modbus_mask_write_register.log";
         req$matched = T;
-        modbus_connection_id = req$modbus_detailed_link_id;
 
         Log::write(LOG_DETAILED, req);
 
         #cleanup
-        delete modbus_pending[request_string][headers$tid];
+        delete modbus_requests[c$id][headers$tid];
+        if(|modbus_requests[c$id]| == 0)
+                delete modbus_requests[c$id];
     }
-
-    else {
-        modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                        $uid=c$uid,
-                                                        $id=c$id,
-                                                        $tid=headers$tid,
-                                                        $func=Modbus::function_codes[headers$function_code],
-                                                        $unit=headers$uid,
-                                                        $address=address,
-                                                        $modbus_detailed_link_id=modbus_connection_id];
-    }
-
-    mask_write_register_response$modbus_detailed_link_id = modbus_connection_id;
 
     Log::write(LOG_MASK_WRITE_REGISTER, mask_write_register_response);    
 
+    #local mask_write_register_response_detailed: Modbus_Detailed; 
+    
+    #mask_write_register_response_detailed$ts                 = network_time();
+    #mask_write_register_response_detailed$uid                = c$uid;
+    #mask_write_register_response_detailed$id                 = c$id;
+
+    #mask_write_register_response_detailed$is_orig            = F;
+    #mask_write_register_response_detailed$source_h           = c$id$resp_h;
+    #mask_write_register_response_detailed$source_p           = c$id$resp_p;
+    #mask_write_register_response_detailed$destination_h      = c$id$orig_h;
+    #mask_write_register_response_detailed$destination_p      = c$id$orig_p;
+
+    #mask_write_register_response_detailed$tid                = headers$tid;
+    #mask_write_register_response_detailed$unit               = headers$uid;
+    #mask_write_register_response_detailed$func               = Modbus::function_codes[headers$function_code];
+    #mask_write_register_response_detailed$request_response   = "RESPONSE";
+    #mask_write_register_response_detailed$values              = "see modbus_mask_write_register.log";
+
+    #Log::write(LOG_DETAILED, mask_write_register_response_detailed);
 }
 
 @if (Version::at_least("6.1.0"))
@@ -1400,29 +1689,38 @@ event modbus_diagnostics_request(c: connection,
                                  headers: ModbusHeaders,
                                  subfunction: count,
                                  data: string) {
-   
-    if(response_string in modbus_pending && headers$tid in modbus_pending[response_string]) {   
-        local resp = modbus_pending[response_string][headers$tid];
-        resp$matched = T;
+    if(c$id !in modbus_requests)
+        modbus_requests[c$id] = table();
 
-        resp$request_subfunction_code += diagnostic_subfunction_code[subfunction];
-        resp$request_data += data;
 
-        Log::write(LOG_DETAILED, resp);
+    modbus_requests[c$id][headers$tid] = [$ts=network_time(),
+                                  $uid=c$uid,
+                                  $id=c$id,
+                                  $tid=headers$tid,
+                                  $func=Modbus::function_codes[headers$function_code],
+                                  $unit=headers$uid,
+                                  $address=subfunction];
 
-        delete modbus_pending[response_string][headers$tid];
-        return;
-    }
-    else {                 
-        modbus_pending[request_string][headers$tid] = [$ts=network_time(),
-                                                       $uid=c$uid,
-                                                       $id=c$id,
-                                                       $tid=headers$tid,
-                                                       $func=Modbus::function_codes[headers$function_code],
-                                                       $unit=headers$uid,
-                                                       $request_subfunction_code=diagnostic_subfunction_code[subfunction],
-                                                       $request_data=data];
-    }
+    #local diagnostics_request: Modbus_Detailed;
+
+    #diagnostics_request$ts                  = network_time();
+    #diagnostics_request$uid                 = c$uid;
+    #diagnostics_request$id                  = c$id;
+
+    #diagnostics_request$is_orig             = T;
+    #diagnostics_request$source_h            = c$id$orig_h;
+    #diagnostics_request$source_p            = c$id$orig_p;
+    #diagnostics_request$destination_h       = c$id$resp_h;
+    #diagnostics_request$destination_p       = c$id$resp_p;
+
+    #diagnostics_request$tid                 = headers$tid;
+    #diagnostics_request$unit                = headers$uid;
+    #diagnostics_request$func                = Modbus::function_codes[headers$function_code];
+    #diagnostics_request$request_response    = "REQUEST";
+    #diagnostics_request$address             = subfunction;
+    #diagnostics_request$values              = data;
+
+    #Log::write(LOG_DETAILED, diagnostics_request);
 }
 
 #############################################################################################################################
@@ -1433,27 +1731,39 @@ event modbus_diagnostics_response(c: connection,
                                   subfunction: count,
                                   data: string) {
     
-    if (request_string in modbus_pending && headers$tid in modbus_pending[request_string]) {
-        local req = modbus_pending[request_string][headers$tid];
-        req$response_data = data;
+    if(c$id in modbus_requests && headers$tid in modbus_requests[c$id]) {
+        local req = modbus_requests[c$id][headers$tid];
+        req$misc = fmt("values=%s", data); #this is in bytes -> convert?
         req$matched = T;
-        req$response_subfunction_code = diagnostic_subfunction_code[subfunction];
 
         Log::write(LOG_DETAILED, req);
 
         #cleanup
-        delete modbus_pending[request_string][headers$tid];
+        delete modbus_requests[c$id][headers$tid];
+        if(|modbus_requests[c$id]| == 0)
+                delete modbus_requests[c$id];
     }
-    else {
-        modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                        $uid=c$uid,
-                                                        $id=c$id,
-                                                        $tid=headers$tid,
-                                                        $func=Modbus::function_codes[headers$function_code],
-                                                        $unit=headers$uid,
-                                                        $response_subfunction_code=diagnostic_subfunction_code[subfunction],
-                                                        $response_data=data];
-    }
+
+    #local diagnostics_response: Modbus_Detailed;
+
+    #diagnostics_response$ts                  = network_time();
+    #diagnostics_response$uid                 = c$uid;
+    #diagnostics_response$id                  = c$id;
+
+    #diagnostics_response$is_orig             = F;
+    #diagnostics_response$source_h            = c$id$resp_h;
+    #diagnostics_response$source_p            = c$id$resp_p;
+    #diagnostics_response$destination_h       = c$id$orig_h;
+    #diagnostics_response$destination_p       = c$id$orig_p;
+
+    #diagnostics_response$tid                 = headers$tid;
+    #diagnostics_response$unit                = headers$uid;
+    #diagnostics_response$func                = Modbus::function_codes[headers$function_code];
+    #diagnostics_response$request_response    = "RESPONSE";
+    #diagnostics_response$address             = subfunction;
+    #diagnostics_response$values              = data;
+
+    #Log::write(LOG_DETAILED, diagnostics_response);
 }
 
 #############################################################################################################################
@@ -1471,21 +1781,20 @@ function modbus_read_device_identification_request(c: connection,
     read_device_identification_request$uid                      = c$uid;
     read_device_identification_request$id                       = c$id;
 
-    read_device_identification_request$is_orig                  = T;
-    read_device_identification_request$source_h                 = c$id$orig_h;
-    read_device_identification_request$source_p                 = c$id$orig_p;
-    read_device_identification_request$destination_h            = c$id$resp_h;
-    read_device_identification_request$destination_p            = c$id$resp_p;
+    read_device_identification_request$is_orig             = T;
+    read_device_identification_request$source_h            = c$id$orig_h;
+    read_device_identification_request$source_p            = c$id$orig_p;
+    read_device_identification_request$destination_h       = c$id$resp_h;
+    read_device_identification_request$destination_p       = c$id$resp_p;
 
-    read_device_identification_request$modbus_detailed_link_id  = connection_id;  
-    read_device_identification_request$request_response         = "REQUEST";
-    read_device_identification_request$tid                      = headers$tid;
-    read_device_identification_request$unit                     = headers$uid;
-    read_device_identification_request$func                     = Modbus::function_codes[headers$function_code];
-    read_device_identification_request$mei_type                 = "READ-DEVICE-IDENTIFICATION";
-    read_device_identification_request$device_id_code           = bytestring_to_count(data[0]);
-    read_device_identification_request$object_id_code           = fmt("0x%02x",bytestring_to_count(data[1]));
-    read_device_identification_request$object_id                = device_identification_read_object_id[bytestring_to_count(data[1])];
+    read_device_identification_request$request_response    = "REQUEST";
+    read_device_identification_request$tid                 = headers$tid;
+    read_device_identification_request$unit                = headers$uid;
+    read_device_identification_request$func                = Modbus::function_codes[headers$function_code];
+    read_device_identification_request$mei_type            = "READ-DEVICE-IDENTIFICATION";
+    read_device_identification_request$device_id_code      = bytestring_to_count(data[0]);
+    read_device_identification_request$object_id_code      = fmt("0x%02x",bytestring_to_count(data[1]));
+    read_device_identification_request$object_id           = device_identification_read_object_id[bytestring_to_count(data[1])];
 
     Log::write(LOG_READ_DEVICE_IDENTIFICATION, read_device_identification_request);
 }
@@ -1510,7 +1819,6 @@ function modbus_read_device_identification_response(c: connection,
     read_device_identification_response$destination_h           = c$id$orig_h;
     read_device_identification_response$destination_p           = c$id$orig_p;
 
-    read_device_identification_response$modbus_detailed_link_id = connection_id;  
     read_device_identification_response$request_response        = "RESPONSE";
     read_device_identification_response$tid                     = headers$tid;
     read_device_identification_response$unit                    = headers$uid;
@@ -1549,57 +1857,55 @@ event modbus_encap_interface_transport_request(c: connection,
                                                mei_type: count,
                                                data: string) {
 
-    local modbus_connection_id: string = generate_uid();
-    local misc: string;
-    local resp: Modbus_Detailed;
-    if (response_string in modbus_pending && headers$tid in modbus_pending[response_string]) {
-        resp = modbus_pending[response_string][headers$tid];
-        modbus_connection_id = resp$modbus_detailed_link_id;
-    }
+    #local encap_interface_transport_request: Modbus_Detailed;
+
+    #encap_interface_transport_request$ts                  = network_time();
+    #encap_interface_transport_request$uid                 = c$uid;
+    #encap_interface_transport_request$id                  = c$id;
+
+    #encap_interface_transport_request$is_orig             = T;
+    #encap_interface_transport_request$source_h            = c$id$orig_h;
+    #encap_interface_transport_request$source_p            = c$id$orig_p;
+    #encap_interface_transport_request$destination_h       = c$id$resp_h;
+    #encap_interface_transport_request$destination_p       = c$id$resp_p;
+
+    #encap_interface_transport_request$tid                 = headers$tid;
+    #encap_interface_transport_request$unit                = headers$uid;
+    #encap_interface_transport_request$func                = Modbus::function_codes[headers$function_code];
+    #encap_interface_transport_request$request_response    = "REQUEST";
+
+   
+    if(c$id !in modbus_requests)
+        modbus_requests[c$id] = table();
+
+
+    modbus_requests[c$id][headers$tid] = [$ts=network_time(),
+                                  $uid=c$uid,
+                                  $id=c$id,
+                                  $tid=headers$tid,
+                                  $func=Modbus::function_codes[headers$function_code],
+                                  $unit=headers$uid];
+    
+    local req = modbus_requests[c$id][headers$tid];
+     
     if (mei_type == 0x0D)
     {
-        misc = "CANopen";
+        #req$misc = "CANopen";
 	#encap_interface_transport_request$values          = "CANopen";
     }
     else if (mei_type == 0x0E)
     {
-        modbus_read_device_identification_request(c, headers, data, modbus_connection_id);
-        misc = "Read Device Identification";
+        modbus_read_device_identification_request(c, headers, data);
+        #req$misc = "see modbus_read_device_identification.log";
 	#encap_interface_transport_request$values          = "see modbus_read_device_identification.log";
     }
     else
     {
-	    misc = fmt("invalid encapsulated interface transport mei-(0x%02x)", mei_type);
+	#req$misc = fmt("invalid encapsulated interface transport mei-(0x%02x)", mei_type);
         #encap_interface_transport_request$values          = fmt("invalid encapsulated interface transport mei-(0x%02x)",mei_type);
     }
-    if(response_string in modbus_pending && headers$tid in modbus_pending[response_string]) {  
-        resp$matched = T;
 
-        if (resp$mei_type != "") {
-            if (resp$mei_type != misc) {
-                resp$mei_type += " and " + misc;
-            }
-        }
-        else {
-            resp$mei_type = misc;
-        }
-
-        Log::write(LOG_DETAILED, resp);
-
-        delete modbus_pending[response_string][headers$tid];
-        return;
-    }
-
-    else{
-        modbus_pending[request_string][headers$tid] = [$ts=network_time(),
-                                                       $uid=c$uid,
-                                                       $id=c$id,
-                                                       $tid=headers$tid,
-                                                       $func=Modbus::function_codes[headers$function_code],
-                                                       $unit=headers$uid,
-                                                       $mei_type=misc,
-                                                       $modbus_detailed_link_id=modbus_connection_id];
-    }
+    #Log::write(LOG_DETAILED, encap_interface_transport_request);
 }
 
 #############################################################################################################################
@@ -1609,62 +1915,63 @@ event modbus_encap_interface_transport_response(c: connection,
                                                 headers: ModbusHeaders,
                                                 mei_type: count,
                                                 data: string) {
-    local misc: string;
-    local modbus_connection_id: string = generate_uid();
-    local req: Modbus_Detailed;
-    if (request_string in modbus_pending && headers$tid in modbus_pending[request_string]) {
-        req = modbus_pending[request_string][headers$tid];
-        modbus_connection_id = req$modbus_detailed_link_id;
-    }
-    if (mei_type == 0x0D)
-    {
-        misc = "CANopen";
-    }
-    else if (mei_type == 0x0E)
-    {
-        modbus_read_device_identification_response(c, headers, data, modbus_connection_id);
-        misc = "Read Device Identification";
-    }
-    else
-    {
-        misc = fmt("unknown encapsulated interface transport mei-(ox%02x)", mei_type);
-    }
 
-    if (request_string in modbus_pending && headers$tid in modbus_pending[request_string]) {
+    #local encap_interface_transport_response: Modbus_Detailed;
+
+    #encap_interface_transport_response$ts                  = network_time();
+    #encap_interface_transport_response$uid                 = c$uid;
+    #encap_interface_transport_response$id                  = c$id;
+
+    #encap_interface_transport_response$is_orig             = F;
+    #encap_interface_transport_response$source_h            = c$id$resp_h;
+    #encap_interface_transport_response$source_p            = c$id$resp_p;
+    #encap_interface_transport_response$destination_h       = c$id$orig_h;
+    #encap_interface_transport_response$destination_p       = c$id$orig_p;
+
+    #encap_interface_transport_response$tid                 = headers$tid;
+    #encap_interface_transport_response$unit                = headers$uid;
+    #encap_interface_transport_response$func                = Modbus::function_codes[headers$function_code];
+    #encap_interface_transport_response$request_response    = "RESPONSE";
+
+    #Log::write(LOG_DETAILED, encap_interface_transport_response);
+
+    if(c$id in modbus_requests && headers$tid in modbus_requests[c$id]) {
+        local req = modbus_requests[c$id][headers$tid];
+        #req$response_data = fmt("values=%s", data); #this is in bytes -> convert?
         req$matched = T;
-        if (req$mei_type != "") {
-            if (req$mei_type != misc) {
-                req$mei_type += " and " + misc;
-            }
-        }
-        else {
-            req$mei_type = misc;
-        }
 
+	if (mei_type == 0x0D)
+    	{
+		req$misc = "CANopen";
+        	#encap_interface_transport_response$values          = "CANopen";
+    	}
+    	else if (mei_type == 0x0E)
+    	{
+        	modbus_read_device_identification_response(c, headers, data);
+        	req$misc = "see modbus_read_device_identification.log";
+		#encap_interface_transport_response$values          = "see modbus_read_device_identification.log";
+    	}
+    	else
+    	{
+		req$misc = fmt("unknown encapsulated interface transport mei-(ox%02x)", mei_type);
+        	#encap_interface_transport_response$values          = fmt("unknown encapsulated interface transport mei-(0x%02x)", mei_type);
+    	}
 
         Log::write(LOG_DETAILED, req);
 
         #cleanup
-        delete modbus_pending[request_string][headers$tid];
+        delete modbus_requests[c$id][headers$tid];
+        if(|modbus_requests[c$id]| == 0)
+                delete modbus_requests[c$id];
     }
-
-    else {
-        modbus_pending[response_string][headers$tid] = [$ts=network_time(),
-                                                        $uid=c$uid,
-                                                        $id=c$id,
-                                                        $tid=headers$tid,
-                                                        $func=Modbus::function_codes[headers$function_code],
-                                                        $unit=headers$uid,
-                                                        $mei_type=misc,
-                                                        $modbus_detailed_link_id=modbus_connection_id];
-    }
+    
 }
 @endif
 
 #############################################################################################################################
 ##################################  Logs Modbus connection object to modbus_detailed.log  ###################################
 #############################################################################################################################
-#This event causes my entire log to get messed up!! Why?!?!#
+##This event causes my entire log to get messed up!! Why?!?!##
 event modbus_message(c: connection,
                      headers: ModbusHeaders,
                      is_orig: bool) &priority=-3 {
@@ -1673,15 +1980,60 @@ event modbus_message(c: connection,
 
     if (( headers$function_code < 0x80)) {
 
-	# look over how to handle this because maybe i can make this neater??
-    if ( !handled_modbus_funct_list (c$modbus$func)) {
-        modbus_detailed_rec = [$ts=network_time(),
-                               $uid=c$uid,
-                               $id=c$id,
-                               $tid=headers$tid,
-                               $func=Modbus::function_codes[headers$function_code],
-                               $unit=headers$uid];
-        Log::write(LOG_DETAILED, modbus_detailed_rec);
+        if (is_orig){
+           if(c$id !in modbus_requests)
+        	modbus_requests[c$id] = table();
+
+
+    	   modbus_requests[c$id][headers$tid] = [$ts=network_time(),
+                                       		$uid=c$uid,
+                                 	 	$id=c$id,
+                                  		$tid=headers$tid,
+                                  		$func=Modbus::function_codes[headers$function_code],
+                                  		$unit=headers$uid];
+	    
+	    #modbus_detailed_rec$is_orig           = T;
+            #modbus_detailed_rec$source_h          = c$id$orig_h;
+            #modbus_detailed_rec$source_p          = c$id$orig_p;
+            #modbus_detailed_rec$destination_h     = c$id$resp_h;
+            #modbus_detailed_rec$destination_p     = c$id$resp_p;
+            #modbus_detailed_rec$request_response  = "REQUEST";
+        }else{
+           if(c$id in modbus_requests && headers$tid in modbus_requests[c$id]) {
+        	print "Im in";   	
+		modbus_detailed_rec = modbus_requests[c$id][headers$tid];
+       	   	modbus_detailed_rec$matched = T;
+    	    }
+
+	    #modbus_detailed_rec$is_orig           = F;
+            #modbus_detailed_rec$source_h          = c$id$resp_h;
+            #modbus_detailed_rec$source_p          = c$id$resp_p;
+            #modbus_detailed_rec$destination_h     = c$id$orig_h;
+            #modbus_detailed_rec$destination_p     = c$id$orig_p;
+            #modbus_detailed_rec$request_response  = "RESPONSE";
+        }
+
+	#look over how to handle this because maybe i can make this neater??
+        if ( !handled_modbus_funct_list (c$modbus$func)) {
+               print "not in function list"; 
+	       if(c$id in modbus_requests && headers$tid in modbus_requests[c$id]) {
+			modbus_detailed_rec = modbus_requests[c$id][headers$tid];
+        	       	modbus_detailed_rec$matched = T;
+
+                	Log::write(LOG_DETAILED, modbus_detailed_rec);
+
+                	#cleanup
+                	delete modbus_requests[c$id][headers$tid];
+                	if(|modbus_requests[c$id]| == 0)
+                        	delete modbus_requests[c$id];
+		}
+
+	    #modbus_detailed_rec$ts        = network_time();
+            #modbus_detailed_rec$uid       = c$uid;
+            #modbus_detailed_rec$id        = c$id;
+            #modbus_detailed_rec$tid       = headers$tid;
+            #modbus_detailed_rec$unit      = headers$uid;
+            #modbus_detailed_rec$func      = Modbus::function_codes[headers$function_code];
       }
    }
 }
@@ -1692,43 +2044,44 @@ event modbus_message(c: connection,
 event modbus_exception(c: connection,
                        headers: ModbusHeaders,
                        code: count) &priority=-4 {
+    if(c$id !in modbus_requests)
+        modbus_requests[c$id] = table();
 
-    local exception_detailed: Modbus_Detailed;
 
-    if (request_string in modbus_pending && headers$tid in modbus_pending[request_string]) {
-        local req = modbus_pending[request_string][headers$tid];
-        req$matched = T;
-        req$exception_code = c$modbus$exception;
+    modbus_requests[c$id][headers$tid] = [$ts=network_time(),
+                                  $uid=c$uid,
+                                  $id=c$id,
+                                  $tid=headers$tid,
+                                  $func=Modbus::function_codes[headers$function_code],
+                                  $unit=headers$uid,
+				  $misc=c$modbus$exception];
 
-        Log::write(LOG_DETAILED, req);
 
-        #cleanup
-        delete modbus_pending[request_string][headers$tid];
-    }
+    Log::write(LOG_DETAILED, modbus_requests[c$id][headers$tid]);
+    
+    #cleanup
+    delete modbus_requests[c$id][headers$tid];
+    if(|modbus_requests[c$id]| == 0)
+    	delete modbus_requests[c$id];
 
-    else {
-        exception_detailed$ts                   = network_time();
-        exception_detailed$uid                  = c$uid;
-        exception_detailed$id                   = c$id;
+    #local exception_detailed: Modbus_Detailed;
 
-        exception_detailed$tid                  = headers$tid;
-        exception_detailed$unit                 = headers$uid;
-        exception_detailed$func                 = c$modbus$func;
-        exception_detailed$exception_code           = c$modbus$exception;
+    #exception_detailed$ts                   = network_time();
+    #exception_detailed$uid                  = c$uid;
+    #exception_detailed$id                   = c$id;
 
-        Log::write(LOG_DETAILED, exception_detailed);
-    }
+    #exception_detailed$is_orig              = F;
+    #exception_detailed$source_h             = c$id$resp_h;
+    #exception_detailed$source_p             = c$id$resp_p;
+    #exception_detailed$destination_h        = c$id$orig_h;
+    #exception_detailed$destination_p        = c$id$orig_p;
+
+    #exception_detailed$tid                  = headers$tid;
+    #exception_detailed$unit                 = headers$uid;
+    #exception_detailed$func                 = c$modbus$func;
+    #exception_detailed$request_response     = "RESPONSE";
+    #exception_detailed$values               = c$modbus$exception;
+
+    #Log::write(LOG_DETAILED, exception_detailed);
 }
 
-event connection_state_remove(c: connection) {
-    for ( id in modbus_pending[request_string] ) {
-        local req: Modbus_Detailed = modbus_pending[request_string][id];
-        req$matched = F;
-        Log::write(LOG_DETAILED, req);
-    }
-    for ( id in modbus_pending[response_string] ) {
-        local resp: Modbus_Detailed = modbus_pending[response_string][id];
-        resp$matched = F;
-        Log::write(LOG_DETAILED, resp);
-    }
-}
