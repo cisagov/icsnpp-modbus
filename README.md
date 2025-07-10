@@ -68,26 +68,22 @@ If an exception arises in the Modbus data, the exception code will be logged in 
 
 #### Fields Captured
 
-| Field                     | Type              | Description                                                       |
-| ------------------------- |-------------------|-------------------------------------------------------------------|
-| ts                        | time              | Timestamp                                                         |
-| uid                       | string            | Unique ID for this connection                                     |
-| id                        | conn_id           | Zeek connection struct (addresses and ports)                      |            
-| tid                       | count             | Modbus transaction identifier                                     |
-| unit                      | count             | Modbus terminal unit identifier                                   | 
-| func                      | string            | Modbus function code                                              |                                       
-| address                   | count             | Starting address of response_counts or request_counts field       |
-| quantity                  | count             | Number of coils, discrete_inputs, or registers read or written to |
-| request_values            | vector of count   | Value(s) of coils, discrete_inputs, or registers in the request   |
-| response_values           | vector of count   | Value(s) of coils, discrete_inputs, or registers in the response  |
-| modbus_detailed_link_id   | string            | This is a unique identifier that links to other detailed logs     | 
-| matched                   | bool              | Identifies information is from matching request/response packets  |
-| request_subfunction_code  | string            | Diagnostic subfunction code in the request                        |
-| response_subfunction_code | string            | Diagnostic subfunction code in the request                        |
-| request_data              | string            | Any additional data or padding in the request                     |
-| response_data             | string            | Any additional data or padding in the response                    |
-| exception_code            | string            | Exception code in the response                                    |
-| mei_type                  | string            | MEI Type in the encap interface transport                         |
+| Field             | Type      | Description                                                       |
+| ----------------- |-----------|-------------------------------------------------------------------|
+| ts                | time      | Timestamp                                                         |
+| uid               | string    | Unique ID for this connection                                     |           
+| id.orig_h         | address   | Source IP address (originator)                                    |
+| id.orig_p         | port      | Source port number                                                |
+| id.resp_h         | address   | Destination IP address (responder)                                |
+| id.resp_p         | port      | Destination port                                                  |
+| tid               | count     | Modbus transaction identifier                                     |
+| unit              | count     | Modbus terminal unit identifier                                   |
+| func              | string    | Modbus function code                                              |                                              
+| address           | count     | Starting address of response_counts field                         |
+| quantity          | count     | Number of addresses/values read or written to                     |
+| response_counts   | count     | Value(s) of coils, discrete_inputs, or registers read/written to  |
+| misc              | string    | Non-traditional values(s)                                         |
+| matched           | bool      | Identifies information is from matching request/response packets  |
 
 ### Mask Write Register Log (modbus_mask_write_register.log)        
 
