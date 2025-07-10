@@ -37,7 +37,7 @@ export {
         #request_response       : string            &log &optional;   # REQUEST or RESPONSE
         address                 : count             &log &optional;   # Starting address for value(s) field
         quantity		: count             &log &optional;
-	response_data		: string	    &log &optional;
+	#response_data		: string	    &log &optional;
 	response_counts	        : vector of count   &optional &log;
     	#response_bools		: vector of bool    &optional &log;
 	misc                    : string            &log &optional;
