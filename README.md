@@ -71,20 +71,19 @@ If an exception arises in the Modbus data, the exception code will be logged in 
 | Field             | Type      | Description                                                       |
 | ----------------- |-----------|-------------------------------------------------------------------|
 | ts                | time      | Timestamp                                                         |
-| uid               | string    | Unique ID for this connection                                     |
-| id                | conn_id   | Default Zeek connection info (IP addresses, ports)                |
-| is_orig           | bool      | True if the packet is sent from the originator                    |
-| source_h          | address   | Source IP address (see *Source and Destination Fields*)           |
-| source_p          | port      | Source port (see *Source and Destination Fields*)                 |
-| destination_h     | address   | Destination IP address (see *Source and Destination Fields*)      |
-| destination_p     | port      | Destination port (see *Source and Destination Fields*)            |
+| uid               | string    | Unique ID for this connection                                     |           
+| id.orig_h         | address   | Source IP address (originator)                                    |
+| id.orig_p         | port      | Source port number                                                |
+| id.resp_h         | address   | Destination IP address (responder)                                |
+| id.resp_p         | port      | Destination port                                                  |
 | tid               | count     | Modbus transaction identifier                                     |
-| uint              | count     | Modbus terminal unit identifier                                   |
-| func              | string    | Modbus function code                                              |
-| request_response  | string    | REQUEST or RESPONSE                                               |
-| address           | count     | Starting address of value(s) field                                |
+| unit              | count     | Modbus terminal unit identifier                                   |
+| func              | string    | Modbus function code                                              |                                              
+| address           | count     | Starting address of response_counts field                         |
 | quantity          | count     | Number of addresses/values read or written to                     |
-| values            | string    | Value(s) of coils, discrete_inputs, or registers read/written to  |  
+| response_counts   | count     | Value(s) of coils, discrete_inputs, or registers read/written to  |
+| misc              | string    | Non-traditional values(s)                                         |
+| matched           | bool      | Identifies information is from matching request/response packets  |
 
 
 ### Mask Write Register Log (modbus_mask_write_register.log)
