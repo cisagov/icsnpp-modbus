@@ -22,21 +22,21 @@ export {
     #####################################  Modbus Detailed Log -> modbus_detailed.log  ######################################
     #########################################################################################################################
     type Modbus_Detailed: record {
-        ts                      : time              &log;             # Timestamp of event
-        uid                     : string            &log;             # Zeek unique ID for connection
-        id                      : conn_id           &log;             # Zeek connection struct (addresses and ports)
-        is_orig                 : bool              &log;             # the message came from the originator/client or the responder/server
-        source_h                : addr              &log;             # Source IP Address
-        source_p                : port              &log;             # Source Port
-        destination_h           : addr              &log;             # Destination IP Address
-        destination_p           : port              &log;             # Destination Port
-        tid                     : count             &log &optional;   # Modbus transaction id
-        unit                    : count             &log &optional;   # Modbus terminal unit identifier
-        func                    : string            &log &optional;   # Modbus Function
-        request_response        : string            &log &optional;   # REQUEST or RESPONSE
-        address                 : count             &log &optional;   # Starting address for value(s) field
-        quantity                : count             &log &optional;   # Number of addresses/values read or written to
-        values                  : string            &log &optional;   # Coils, discrete_inputs, or registers read/written to
+        ts                      : time              &log;             ##< Timestamp of event
+        uid                     : string            &log;             ##< Zeek unique ID for connection
+        id                      : conn_id           &log;             ##< Zeek connection struct (addresses and ports)
+        is_orig                 : bool              &log;             ##< the message came from the originator/client or the responder/server
+        source_h                : addr              &log;             ##< Source IP Address
+        source_p                : port              &log;             ##< Source Port
+        destination_h           : addr              &log;             ##< Destination IP Address
+        destination_p           : port              &log;             ##< Destination Port
+        tid                     : count             &log &optional;   ##< Modbus transaction id
+        unit                    : count             &log &optional;   ##< Modbus terminal unit identifier
+        func                    : string            &log &optional;   ##< Modbus Function
+        request_response        : string            &log &optional;   ##< REQUEST or RESPONSE
+        address                 : count             &log &optional;   ##< Starting address for value(s) field
+        quantity                : count             &log &optional;   ##< Number of addresses/values read or written to
+        values                  : string            &log &optional;   ##< Coils, discrete_inputs, or registers read/written to
     };
     global log_modbus_detailed: event(rec: Modbus_Detailed);
 
@@ -44,21 +44,21 @@ export {
     #############################  Mask Write Register Log -> modbus_mask_write_register.log  ###############################
     #########################################################################################################################
     type Mask_Write_Register: record {
-        ts                      : time              &log;             # Timestamp of event
-        uid                     : string            &log;             # Zeek unique ID for connection
-        id                      : conn_id           &log;             # Zeek connection struct (addresses and ports)
-        is_orig                 : bool              &log;             # the message came from the originator/client or the responder/server
-        source_h                : addr              &log;             # Source IP Address
-        source_p                : port              &log;             # Source Port
-        destination_h           : addr              &log;             # Destination IP Address
-        destination_p           : port              &log;             # Destination Port
-        tid                     : count             &log &optional;   # Modbus transaction id
-        unit                    : count             &log &optional;   # Modbus terminal unit identifier
-        func                    : string            &log &optional;   # Modbus Function
-        request_response        : string            &log &optional;   # REQUEST or RESPONSE
-        address                 : count             &log &optional;   # Address of the target register
-        and_mask                : count             &log &optional;   # Boolean 'and' mask to apply to the target register
-        or_mask                 : count             &log &optional;   # Boolean 'or' mask to apply to the target register
+        ts                      : time              &log;             ##< Timestamp of event
+        uid                     : string            &log;             ##< Zeek unique ID for connection
+        id                      : conn_id           &log;             ##< Zeek connection struct (addresses and ports)
+        is_orig                 : bool              &log;             ##< the message came from the originator/client or the responder/server
+        source_h                : addr              &log;             ##< Source IP Address
+        source_p                : port              &log;             ##< Source Port
+        destination_h           : addr              &log;             ##< Destination IP Address
+        destination_p           : port              &log;             ##< Destination Port
+        tid                     : count             &log &optional;   ##< Modbus transaction id
+        unit                    : count             &log &optional;   ##< Modbus terminal unit identifier
+        func                    : string            &log &optional;   ##< Modbus Function
+        request_response        : string            &log &optional;   ##< REQUEST or RESPONSE
+        address                 : count             &log &optional;   ##< Address of the target register
+        and_mask                : count             &log &optional;   ##< Boolean 'and' mask to apply to the target register
+        or_mask                 : count             &log &optional;   ##< Boolean 'or' mask to apply to the target register
     };
     global log_mask_write_register: event(rec: Mask_Write_Register);
 
@@ -66,23 +66,23 @@ export {
     ###################  Read Write Multiple Registers Log -> modbus_read_write_multiple_registers.log  #####################
     #########################################################################################################################
     type Read_Write_Multiple_Registers: record {
-        ts                      : time              &log;             # Timestamp of event
-        uid                     : string            &log;             # Zeek unique ID for connection
-        id                      : conn_id           &log;             # Zeek connection struct (addresses and ports)
-        is_orig                 : bool              &log;             # the message came from the originator/client or the responder/server
-        source_h                : addr              &log;             # Source IP Address
-        source_p                : port              &log;             # Source Port
-        destination_h           : addr              &log;             # Destination IP Address
-        destination_p           : port              &log;             # Destination Port
-        tid                     : count             &log &optional;   # Modbus transaction id
-        unit                    : count             &log &optional;   # Modbus terminal unit identifier
-        func                    : string            &log &optional;   # Modbus Function
-        request_response        : string            &log &optional;   # REQUEST or RESPONSE
-        write_start_address     : count             &log &optional;   # Starting address of the registers to write to
-        write_registers         : ModbusRegisters   &log &optional;   # Register values written
-        read_start_address      : count             &log &optional;   # Starting address of the registers to read
-        read_quantity           : count             &log &optional;   # Number of registers to read
-        read_registers          : ModbusRegisters   &log &optional;   # Register values read
+        ts                      : time              &log;             ##< Timestamp of event
+        uid                     : string            &log;             ##< Zeek unique ID for connection
+        id                      : conn_id           &log;             ##< Zeek connection struct (addresses and ports)
+        is_orig                 : bool              &log;             ##< the message came from the originator/client or the responder/server
+        source_h                : addr              &log;             ##< Source IP Address
+        source_p                : port              &log;             ##< Source Port
+        destination_h           : addr              &log;             ##< Destination IP Address
+        destination_p           : port              &log;             ##< Destination Port
+        tid                     : count             &log &optional;   ##< Modbus transaction id
+        unit                    : count             &log &optional;   ##< Modbus terminal unit identifier
+        func                    : string            &log &optional;   ##< Modbus Function
+        request_response        : string            &log &optional;   ##< REQUEST or RESPONSE
+        write_start_address     : count             &log &optional;   ##< Starting address of the registers to write to
+        write_registers         : ModbusRegisters   &log &optional;   ##< Register values written
+        read_start_address      : count             &log &optional;   ##< Starting address of the registers to read
+        read_quantity           : count             &log &optional;   ##< Number of registers to read
+        read_registers          : ModbusRegisters   &log &optional;   ##< Register values read
     };
     global log_read_write_multiple_registers: event(rec: Read_Write_Multiple_Registers);
 
@@ -90,25 +90,25 @@ export {
     #######################  Read Device Identification Log -> modbus_read_device_identification.log  #######################
     #########################################################################################################################
     type Read_Device_Identification: record {
-        ts                      : time              &log;             # Timestamp of event
-        uid                     : string            &log;             # Zeek unique ID for connection
-        id                      : conn_id           &log;             # Zeek connection struct (addresses and ports)
-        is_orig                 : bool              &log;             # the message came from the originator/client or the responder/server
-        source_h                : addr              &log;             # Source IP Address
-        source_p                : port              &log;             # Source Port
-        destination_h           : addr              &log;             # Destination IP Address
-        destination_p           : port              &log;             # Destination Port
-        tid                     : count             &log &optional;   # Modbus transaction id
-        unit                    : count             &log &optional;   # Modbus terminal unit identifier
-        func                    : string            &log &optional;   # Modbus Function - 
-        request_response        : string            &log &optional;   # REQUEST or RESPONSE
-        mei_type                : string            &log &optional;   # MEI Type - Always READ-DEVICE-IDENTIFICATION
-        conformity_level_code   : string            &log &optional;   # Conformity Level Code
-        conformity_level        : string            &log &optional;   # Conformity Level 
-        device_id_code          : count             &log &optional;   # Device ID Code
-        object_id_code          : string            &log &optional;   # Object ID Code
-        object_id               : string            &log &optional;   # Object ID
-        object_value            : string            &log &optional;   # Object Value
+        ts                      : time              &log;             ##< Timestamp of event
+        uid                     : string            &log;             ##< Zeek unique ID for connection
+        id                      : conn_id           &log;             ##< Zeek connection struct (addresses and ports)
+        is_orig                 : bool              &log;             ##< the message came from the originator/client or the responder/server
+        source_h                : addr              &log;             ##< Source IP Address
+        source_p                : port              &log;             ##< Source Port
+        destination_h           : addr              &log;             ##< Destination IP Address
+        destination_p           : port              &log;             ##< Destination Port
+        tid                     : count             &log &optional;   ##< Modbus transaction id
+        unit                    : count             &log &optional;   ##< Modbus terminal unit identifier
+        func                    : string            &log &optional;   ##< Modbus Function - 
+        request_response        : string            &log &optional;   ##< REQUEST or RESPONSE
+        mei_type                : string            &log &optional;   ##< MEI Type - Always READ-DEVICE-IDENTIFICATION
+        conformity_level_code   : string            &log &optional;   ##< Conformity Level Code
+        conformity_level        : string            &log &optional;   ##< Conformity Level 
+        device_id_code          : count             &log &optional;   ##< Device ID Code
+        object_id_code          : string            &log &optional;   ##< Object ID Code
+        object_id               : string            &log &optional;   ##< Object ID
+        object_value            : string            &log &optional;   ##< Object Value
     };
     global log_read_device_identification: event(rec: Read_Device_Identification);
 }
