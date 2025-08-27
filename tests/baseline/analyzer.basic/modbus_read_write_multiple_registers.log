@@ -5,10 +5,10 @@
 #unset_field	-
 #path	modbus_read_write_multiple_registers
 #open XXXX-XX-XX-XX-XX-XX
-#fields	ts	uid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	is_orig	source_h	source_p	destination_h	destination_p	tid	unit	func	request_response	write_start_address	write_registers	read_start_address	read_quantity	read_registers
-#types	time	string	addr	port	addr	port	bool	addr	port	addr	port	count	count	string	string	count	vector[count]	count	count	vector[count]
-XXXXXXXXXX.XXXXXX	CHhAvVGS1DHFjwGM9	127.0.0.1	47785	127.0.0.1	502	T	127.0.0.1	47785	127.0.0.1	502	20	6	READ_WRITE_MULTIPLE_REGISTERS	REQUEST	2	255	1	1	-
-XXXXXXXXXX.XXXXXX	CHhAvVGS1DHFjwGM9	127.0.0.1	47785	127.0.0.1	502	F	127.0.0.1	502	127.0.0.1	47785	20	6	READ_WRITE_MULTIPLE_REGISTERS	RESPONSE	-	-	-	-	170
-XXXXXXXXXX.XXXXXX	CHhAvVGS1DHFjwGM9	127.0.0.1	47785	127.0.0.1	502	T	127.0.0.1	47785	127.0.0.1	502	21	6	READ_WRITE_MULTIPLE_REGISTERS	REQUEST	2	170,187,204	1	4	-
-XXXXXXXXXX.XXXXXX	CHhAvVGS1DHFjwGM9	127.0.0.1	47785	127.0.0.1	502	F	127.0.0.1	502	127.0.0.1	47785	21	6	READ_WRITE_MULTIPLE_REGISTERS	RESPONSE	-	-	-	-	170,170,187,204
+#fields	ts	uid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	is_orig	source_h	source_p	destination_h	destination_p	modbus_detailed_link_id	tid	unit	func	request_response	write_start_address	write_registers	read_start_address	read_quantity	read_registers
+#types	time	string	addr	port	addr	port	bool	addr	port	addr	port	string	count	count	string	string	count	vector[count]	count	count	vector[count]
+XXXXXXXXXX.XXXXXX	CHhAvVGS1DHFjwGM9	127.0.0.1	47785	127.0.0.1	502	T	127.0.0.1	47785	127.0.0.1	502	ALbqAobaiNVPkKRv	20	6	READ_WRITE_MULTIPLE_REGISTERS	REQUEST	2	255	1	1	-
+XXXXXXXXXX.XXXXXX	CHhAvVGS1DHFjwGM9	127.0.0.1	47785	127.0.0.1	502	F	127.0.0.1	502	127.0.0.1	47785	ALbqAobaiNVPkKRv	20	6	READ_WRITE_MULTIPLE_REGISTERS	RESPONSE	-	-	-	-	170
+XXXXXXXXXX.XXXXXX	CHhAvVGS1DHFjwGM9	127.0.0.1	47785	127.0.0.1	502	T	127.0.0.1	47785	127.0.0.1	502	4SBrZ2FaZ47MYTg3	21	6	READ_WRITE_MULTIPLE_REGISTERS	REQUEST	2	170,187,204	1	4	-
+XXXXXXXXXX.XXXXXX	CHhAvVGS1DHFjwGM9	127.0.0.1	47785	127.0.0.1	502	F	127.0.0.1	502	127.0.0.1	47785	4SBrZ2FaZ47MYTg3	21	6	READ_WRITE_MULTIPLE_REGISTERS	RESPONSE	-	-	-	-	170,170,187,204
 #close XXXX-XX-XX-XX-XX-XX
