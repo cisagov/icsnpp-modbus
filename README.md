@@ -86,7 +86,7 @@ If an exception arises in the Modbus data, the exception code will be logged in 
 | response_subfunction_code | string            | Diagnostic subfunction code in the request                        |
 | request_data              | string            | Any additional data or padding in the request                     |
 | response_data             | string            | Any additional data or padding in the response                    |
-| error_code                | string            | Exception code in the response                                    |
+| exception_code            | string            | Exception code in the response                                    |
 | mei_type                  | string            | MEI Type in the encap interface transport                         |
 
 ### Mask Write Register Log (modbus_mask_write_register.log)        
