@@ -81,7 +81,7 @@ If an exception arises in the Modbus data, the exception code will be logged in 
 | request_values            | vector of count   | Value(s) of coils, discrete_inputs, or registers in the request   |
 | response_values           | vector of count   | Value(s) of coils, discrete_inputs, or registers in the response  |
 | modbus_detailed_link_id   | string            | This is a unique identifier that links to other detailed logs     | 
-| matched                   | bool              | Identifies information is from matching request/response packets  |
+| matched                   | bool              | States if information is from matching request/response packets   |
 | request_subfunction_code  | string            | Diagnostic subfunction code in the request                        |
 | response_subfunction_code | string            | Diagnostic subfunction code in the request                        |
 | request_data              | string            | Any additional data or padding in the request                     |
