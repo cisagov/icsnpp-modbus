@@ -68,25 +68,28 @@ If an exception arises in the Modbus data, the exception code will be logged in 
 
 #### Fields Captured
 
-| Field             | Type      | Description                                                       |
-| ----------------- |-----------|-------------------------------------------------------------------|
-| ts                | time      | Timestamp                                                         |
-| uid               | string    | Unique ID for this connection                                     |           
-| id.orig_h         | address   | Source IP address (originator)                                    |
-| id.orig_p         | port      | Source port number                                                |
-| id.resp_h         | address   | Destination IP address (responder)                                |
-| id.resp_p         | port      | Destination port                                                  |
-| tid               | count     | Modbus transaction identifier                                     |
-| unit              | count     | Modbus terminal unit identifier                                   |
-| func              | string    | Modbus function code                                              |                                              
-| address           | count     | Starting address of response_counts field                         |
-| quantity          | count     | Number of addresses/values read or written to                     |
-| response_counts   | count     | Value(s) of coils, discrete_inputs, or registers read/written to  |
-| misc              | string    | Non-traditional values(s)                                         |
-| matched           | bool      | Identifies information is from matching request/response packets  |
+| Field                     | Type              | Description                                                       |
+| ------------------------- |-------------------|-------------------------------------------------------------------|
+| ts                        | time              | Timestamp                                                         |
+| uid                       | string            | Unique ID for this connection                                     |
+| id                        | conn_id           | Zeek connection struct (addresses and ports)                      |            
+| tid                       | count             | Modbus transaction identifier                                     |
+| unit                      | count             | Modbus terminal unit identifier                                   | 
+| func                      | string            | Modbus function code                                              |                                       
+| address                   | count             | Starting address of response_counts or request_counts field       |
+| quantity                  | count             | Number of coils, discrete_inputs, or registers read or written to |
+| request_values            | vector of count   | Value(s) of coils, discrete_inputs, or registers in the request   |
+| response_values           | vector of count   | Value(s) of coils, discrete_inputs, or registers in the response  |
+| modbus_detailed_link_id   | string            | This is a unique identifier that links to other detailed logs     | 
+| matched                   | bool              | Identifies information is from matching request/response packets  |
+| request_subfunction_code  | string            | Diagnostic subfunction code in the request                        |
+| response_subfunction_code | string            | Diagnostic subfunction code in the request                        |
+| request_data              | string            | Any additional data or padding in the request                     |
+| response_data             | string            | Any additional data or padding in the response                    |
+| error_code                | string            | Exception code in the response                                    |
+| mei_type                  | string            | MEI Type in the encap interface transport                         |
 
-
-### Mask Write Register Log (modbus_mask_write_register.log)
+### Mask Write Register Log (modbus_mask_write_register.log)        
 
 #### Overview
 
@@ -94,23 +97,24 @@ This log captures the fields of the Modbus *mask_write_register* function (funct
 
 #### Fields Captured
 
-| Field             | Type      | Description                                                       |
-| ----------------- |-----------|-------------------------------------------------------------------|
-| ts                | time      | Timestamp                                                         |
-| uid               | string    | Unique ID for this connection                                     |
-| id                | conn_id   | Default Zeek connection info (IP addresses, ports)                |
-| is_orig           | bool      | True if the packet is sent from the originator                    |
-| source_h          | address   | Source IP address (see *Source and Destination Fields*)           |
-| source_p          | port      | Source port (see *Source and Destination Fields*)                 |
-| destination_h     | address   | Destination IP address (see *Source and Destination Fields*)      |
-| destination_p     | port      | Destination port (see *Source and Destination Fields*)            |
-| tid               | count     | Modbus transaction identifier                                     |
-| uint              | count     | Modbus terminal unit identifier                                   |
-| func              | string    | Modbus function code                                              |
-| request_response  | string    | REQUEST or RESPONSE                                               |
-| address           | count     | Address of the target register                                    |
-| and_mask          | count     | Boolean 'and' mask to apply to the target register                |
-| or_mask           | count     | Boolean 'or' mask to apply to the target register                 |
+| Field                     | Type      | Description                                                       |
+| ------------------------- |-----------|-------------------------------------------------------------------|
+| ts                        | time      | Timestamp                                                         |
+| uid                       | string    | Unique ID for this connection                                     |
+| id                        | conn_id   | Default Zeek connection info (IP addresses, ports)                |
+| is_orig                   | bool      | True if the packet is sent from the originator                    |
+| source_h                  | address   | Source IP address (see *Source and Destination Fields*)           |
+| source_p                  | port      | Source port (see *Source and Destination Fields*)                 |
+| destination_h             | address   | Destination IP address (see *Source and Destination Fields*)      |
+| destination_p             | port      | Destination port (see *Source and Destination Fields*)            |
+| modbus_detailed_link_id   | string    | This is a unique identifier that links to other detailed logs     |
+| tid                       | count     | Modbus transaction identifier                                     |
+| uint                      | count     | Modbus terminal unit identifier                                   |
+| func                      | string    | Modbus function code                                              |
+| request_response          | string    | REQUEST or RESPONSE                                               |
+| address                   | count     | Address of the target register                                    |
+| and_mask                  | count     | Boolean 'and' mask to apply to the target register                |
+| or_mask                   | count     | Boolean 'or' mask to apply to the target register                 |
 
 ### Read Write Multiple Registers Log (modbus_read_write_multiple_registers.log)
 
@@ -120,25 +124,26 @@ This log captures the fields of the Modbus *read/write multiple registers* funct
 
 #### Fields Captured
 
-| Field                 | Type      | Description                                                   |
-| ----------------------|-----------|---------------------------------------------------------------|
-| ts                    | time      | Timestamp                                                     |
-| uid                   | string    | Unique ID for this connection                                 |
-| id                    | conn_id   | Default Zeek connection info (IP addresses, ports)            |
-| is_orig               | bool      | True if the packet is sent from the originator                |
-| source_h              | address   | Source IP address (see *Source and Destination Fields*)       |
-| source_p              | port      | Source port (see *Source and Destination Fields*)             |
-| destination_h         | address   | Destination IP address (see *Source and Destination Fields*)  |
-| destination_p         | port      | Destination port (see *Source and Destination Fields*)        |
-| tid                   | count     | Modbus transaction identifier                                 |
-| uint                  | count     | Modbus terminal unit identifier                               |
-| func                  | string    | Modbus function code                                          |
-| request_response      | string    | REQUEST or RESPONSE                                           |
-| write_start_address   | count     | Starting address of registers to be written                   |
-| write_registers       | string    | Register values written                                       |
-| read_start_address    | count     | Starting address of the registers to read                     |
-| read_quantity         | count     | Number of registers to read in                                |
-| read_registers        | string    | Register values read                                          |
+| Field                     | Type      | Description                                                   |
+| --------------------------|-----------|---------------------------------------------------------------|
+| ts                        | time      | Timestamp                                                     |
+| uid                       | string    | Unique ID for this connection                                 |
+| id                        | conn_id   | Default Zeek connection info (IP addresses, ports)            |
+| is_orig                   | bool      | True if the packet is sent from the originator                |
+| source_h                  | address   | Source IP address (see *Source and Destination Fields*)       |
+| source_p                  | port      | Source port (see *Source and Destination Fields*)             |
+| destination_h             | address   | Destination IP address (see *Source and Destination Fields*)  |
+| destination_p             | port      | Destination port (see *Source and Destination Fields*)        |
+| modbus_detailed_link_id   | string    | This is a unique identifier that links to other detailed logs |
+| tid                       | count     | Modbus transaction identifier                                 |
+| uint                      | count     | Modbus terminal unit identifier                               |
+| func                      | string    | Modbus function code                                          |
+| request_response          | string    | REQUEST or RESPONSE                                           |
+| write_start_address       | count     | Starting address of registers to be written                   |
+| write_registers           | string    | Register values written                                       |
+| read_start_address        | count     | Starting address of the registers to read                     |
+| read_quantity             | count     | Number of registers to read in                                |
+| read_registers            | string    | Register values read                                          |
 
 
 ### Read Device Identification Log (modbus_read_device_identification.log)
@@ -151,27 +156,28 @@ Note: this log is only produced in Zeek versions 6.1 and above
  
 #### Fields Captured
 
-| Field                 | Type      | Description                                                   |
-| ----------------------|-----------|---------------------------------------------------------------|
-| ts                    | time      | Timestamp                                                     |
-| uid                   | string    | Unique ID for this connection                                 |
-| id                    | conn_id   | Default Zeek connection info (IP addresses, ports)            |
-| is_orig               | bool      | True if the packet is sent from the originator                |
-| source_h              | address   | Source IP address (see *Source and Destination Fields*)       |
-| source_p              | port      | Source port (see *Source and Destination Fields*)             |
-| destination_h         | address   | Destination IP address (see *Source and Destination Fields*)  |
-| destination_p         | port      | Destination port (see *Source and Destination Fields*)        |
-| tid                   | count     | Modbus transaction identifier                                 |
-| uint                  | count     | Modbus terminal unit identifier                               |
-| func                  | string    | Modbus function code                                          |
-| request_response      | string    | REQUEST or RESPONSE                                           |
-| mei_type              | string    | MEI Type - Always READ-DEVICE-IDENTIFICATION                  |
-| conformity_level_code | string    | Conformity Level Code                                         |
-| conformity_level      | string    | Conformity Level                                              |
-| device_id_code        | count     | Device ID Code                                                |
-| object_id_code        | string    | Object ID Code                                                |
-| object_id             | string    | Object ID                                                     |
-| object_value          | string    | Object Value                                                  |
+| Field                     | Type      | Description                                                   |
+| --------------------------|-----------|---------------------------------------------------------------|
+| ts                        | time      | Timestamp                                                     |
+| uid                       | string    | Unique ID for this connection                                 |
+| id                        | conn_id   | Default Zeek connection info (IP addresses, ports)            |
+| is_orig                   | bool      | True if the packet is sent from the originator                |
+| source_h                  | address   | Source IP address (see *Source and Destination Fields*)       |
+| source_p                  | port      | Source port (see *Source and Destination Fields*)             |
+| destination_h             | address   | Destination IP address (see *Source and Destination Fields*)  |
+| destination_p             | port      | Destination port (see *Source and Destination Fields*)        |
+| modbus_detailed_link_id   | string    | This is a unique identifier that links to other detailed logs |
+| tid                       | count     | Modbus transaction identifier                                 |
+| uint                      | count     | Modbus terminal unit identifier                               |
+| func                      | string    | Modbus function code                                          |
+| request_response          | string    | REQUEST or RESPONSE                                           |
+| mei_type                  | string    | MEI Type - Always READ-DEVICE-IDENTIFICATION                  |
+| conformity_level_code     | string    | Conformity Level Code                                         |
+| conformity_level          | string    | Conformity Level                                              |
+| device_id_code            | count     | Device ID Code                                                |
+| object_id_code            | string    | Object ID Code                                                |
+| object_id                 | string    | Object ID                                                     |
+| object_value              | string    | Object Value                                                  |
 
 ### Source and Destination Fields
 
