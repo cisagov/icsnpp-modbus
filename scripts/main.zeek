@@ -39,7 +39,7 @@ export {
         response_subfunction_code : string            &log &optional;   # Diagnostic subfunction code in the response
         request_data              : string            &log &optional;   # Any additional data or padding in the request
         response_data             : string            &log &optional;   # Any additional data or padding in the response
-        error_code                : string            &log &optional;   # Exception code in the response
+        exception_code            : string            &log &optional;   # Exception code in the response
         mei_type                  : string            &log &optional;   # MEI Type in the encap interface transport
     };
     global modbus_pending: table[string] of table[count] of Modbus_Detailed; 
@@ -1698,7 +1698,7 @@ event modbus_exception(c: connection,
     if (request_string in modbus_pending && headers$tid in modbus_pending[request_string]) {
         local req = modbus_pending[request_string][headers$tid];
         req$matched = T;
-        req$error_code = c$modbus$exception;
+        req$exception_code = c$modbus$exception;
 
         Log::write(LOG_DETAILED, req);
 
@@ -1714,7 +1714,7 @@ event modbus_exception(c: connection,
         exception_detailed$tid                  = headers$tid;
         exception_detailed$unit                 = headers$uid;
         exception_detailed$func                 = c$modbus$func;
-        exception_detailed$error_code           = c$modbus$exception;
+        exception_detailed$exception_code           = c$modbus$exception;
 
         Log::write(LOG_DETAILED, exception_detailed);
     }
