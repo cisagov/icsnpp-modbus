@@ -1,6 +1,6 @@
 [package]
 script_dir = scripts
-test_command = cd tests && btest -c btest.cfg
+test_command = cd testing && btest -c btest.cfg
 description = Modbus script for detailed logging of the Modbus protocol - CISA ICSNPP
 credits = Brett Rasmussen <brett.rasmussen@inl.gov> & Stephen Kleinheider <stephen.kleinheider@inl.gov>
 tags =  modbus, Modbus, ics, ICS, CISA, INL, ICSNPP, icsnpp, zeek scripting, log writer, protocol analyzer
