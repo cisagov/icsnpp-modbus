@@ -44,6 +44,7 @@ export {
     };
     global modbus_pending: table[string] of table[count] of Modbus_Detailed; 
     global log_modbus_detailed: event(rec: Modbus_Detailed);
+    global log_policy_modbus_detailed: Log::PolicyHook;
 
     #########################################################################################################################
     #############################  Mask Write Register Log -> modbus_mask_write_register.log  ###############################
@@ -67,6 +68,7 @@ export {
         or_mask                 : count             &log &optional;   ##< Boolean 'or' mask to apply to the target register
     };
     global log_mask_write_register: event(rec: Mask_Write_Register);
+    global log_policy_mask_write_register: Log::PolicyHook;
 
     #########################################################################################################################
     ###################  Read Write Multiple Registers Log -> modbus_read_write_multiple_registers.log  #####################
@@ -92,6 +94,7 @@ export {
         read_registers          : ModbusRegisters   &log &optional;   # Register values read
     };
     global log_read_write_multiple_registers: event(rec: Read_Write_Multiple_Registers);
+    global log_policy_read_write_multiple_registers: Log::PolicyHook;
 
     #########################################################################################################################
     #######################  Read Device Identification Log -> modbus_read_device_identification.log  #######################
@@ -119,6 +122,7 @@ export {
         object_value            : string            &log &optional;   ##< Object Value
     };
     global log_read_device_identification: event(rec: Read_Device_Identification);
+    global log_policy_read_device_identification: Log::PolicyHook;
 }
 
 global modbus_requests: table[conn_id] of table[count] of Modbus_Detailed; 
@@ -274,19 +278,23 @@ function handled_modbus_funct_list (cur_func_str : string): bool {
 event zeek_init() &priority=5 {
     Log::create_stream(Modbus_Extended::LOG_DETAILED, [$columns=Modbus_Detailed, 
                                                        $ev=log_modbus_detailed,
-                                                       $path="modbus_detailed"]);
+                                                       $path="modbus_detailed",
+                                                       $policy=log_policy_modbus_detailed]);
 
     Log::create_stream(Modbus_Extended::LOG_MASK_WRITE_REGISTER, [$columns=Mask_Write_Register,
                                                                   $ev=log_mask_write_register,
-                                                                  $path="modbus_mask_write_register"]);
+                                                                  $path="modbus_mask_write_register",
+                                                                  $policy=log_policy_mask_write_register]);
 
     Log::create_stream(Modbus_Extended::LOG_READ_WRITE_MULTIPLE_REGISTERS, [$columns=Read_Write_Multiple_Registers, 
                                                                             $ev=log_read_write_multiple_registers,
-                                                                            $path="modbus_read_write_multiple_registers"]);
+                                                                            $path="modbus_read_write_multiple_registers",
+                                                                            $policy=log_policy_read_write_multiple_registers]);
 
     Log::create_stream(Modbus_Extended::LOG_READ_DEVICE_IDENTIFICATION, [$columns=Read_Device_Identification, 
                                                                             $ev=log_read_device_identification,
-                                                                            $path="modbus_read_device_identification"]);
+                                                                            $path="modbus_read_device_identification",
+                                                                            $policy=log_policy_read_device_identification]);
 }
 
 #############################################################################################################################
