@@ -235,7 +235,40 @@ The general log file for Modbus (modbus.log) is produced by Zeek's default Modbu
 
 ### Detailed Logging
 
-Detailed logging for 11 Modbus functions are logged in the detailed log file (modbus_detailed.log), 1 Modbus function is logged in the mask write register log file (modbus_mask_write_register.log), 1 Modbus function is logged in the read write multiple registers log file (modbus_read_write_multiple_registers.log), and 1 Modbus function is logged in the read device identification log file (modbus_read_device_identification.log). The other, much less common, 5 Modbus functions do not contain detailed logging, therefore, ~74% (14/19) of the default Modbus functions contain detailed logging.
+Detailed logging for 11 Modbus functions are logged in the detailed log file (modbus_detailed.log), 1 Modbus function is logged in the mask write register log file (modbus_mask_write_register.log), 1 Modbus function is logged in the read write multiple registers log file (modbus_read_write_multiple_registers.log), and 1 Modbus function is logged in the read device identification log file (modbus_read_device_identification.log). The other, much less common, 5 Modbus functions do not contain detailed logging, therefore, ~74% (14/19) of the default Modbus functions contain detailed logging. The following table outlines the detail level of each of the 19 functions along with exceptions.
+
+| Function                                           | Logging Level        |
+| -------------------------------------------------- | -------------------- |
+| Read Coils                                         | Logged - Full        |
+| Read Discrete Inputs                               | Logged - Full        |
+| Read Holding Registers                             | Logged - Full        |
+| Read Input Registers                               | Logged - Full        |
+| Write Single Coil                                  | Logged - Full        |
+| Write Single Register                              | Logged - Full        |
+| Read Exception Status                              | Logged - Header Only |
+| Diagnostics                                        | Logged - Header Only |
+| Get Comm. Event Counters                           | Logged - Header Only |
+| Get Comm. Event Log                                | Logged - Header Only |
+| Write Multiple Coils                               | Logged - Full        |
+| Write Multiple Registers                           | Logged - Full        |
+| Report Slave ID                                    | Logged - Header Only |
+| Read File Record                                   | Logged - Full        |
+| Write File Record                                  | Logged - Full        |
+| Mask Write Register                                | Logged - Full        |
+| Read Write Register                                | Logged - Full        |
+| Read FIFO Queue                                    | Logged - Full        |
+| Encapsulated Interface Transport                   | Logged - Full        |
+| Exception: Illegal Function                        | Logged - Full        |
+| Exception: Illegal Data Address                    | Logged - Full        |
+| Exception: Illegal Data Value                      | Logged - Full        |
+| Exception: Slave Device Failure                    | Logged - Full        |
+| Exception: Acknowledge                             | Logged - Full        |
+| Exception: Slave Device Busy                       | Logged - Full        |
+| Exception: Memory Parity Error                     | Logged - Full        |
+| Exception: Gateway Path Unavailable                | Logged - Full        |
+| Exception: Gateway Target Device Failed to Respond | Logged - Full        |
+
+
 
 ## ICSNPP Packages
 
