@@ -235,7 +235,7 @@ The general log file for Modbus (modbus.log) is produced by Zeek's default Modbu
 
 ### Detailed Logging
 
-Detailed logging for 11 Modbus functions are logged in the detailed log file (modbus_detailed.log), 1 Modbus function is logged in the mask write register log file (modbus_mask_write_register.log), 1 Modbus function is logged in the read write multiple registers log file (modbus_read_write_multiple_registers.log), and 1 Modbus function is logged in the read device identification log file (modbus_read_device_identification.log). The other, much less common, 5 Modbus functions do not contain detailed logging, therefore, ~74% (14/19) of the default Modbus functions contain detailed logging. The following table outlines the detail level of each of the 19 functions along with exceptions.
+Detailed logging for 12 Modbus functions is provided in the detailed log file (modbus_detailed.log), 1 Modbus function is logged in the mask write register log file (modbus_mask_write_register.log), 1 Modbus function is logged in the read write multiple registers log file (modbus_read_write_multiple_registers.log), and 1 Modbus function is logged in the read device identification log file (modbus_read_device_identification.log). The other, much less common, 4 Modbus functions do not contain detailed logging; therefore, ~79% (15/19) of the default Modbus functions contain detailed logging. These coverage figures reflect Zeek 6.1.0 or newer. On earlier supported Zeek versions, Diagnostics, Read File Record, Write File Record, and Encapsulated Interface Transport have header-only logging. The following table outlines the detail level of each of the 19 functions along with exceptions.
 
 | Function                                           | Logging Level        |
 | -------------------------------------------------- | -------------------- |
@@ -246,7 +246,7 @@ Detailed logging for 11 Modbus functions are logged in the detailed log file (mo
 | Write Single Coil                                  | Logged - Full        |
 | Write Single Register                              | Logged - Full        |
 | Read Exception Status                              | Logged - Header Only |
-| Diagnostics                                        | Logged - Header Only |
+| Diagnostics                                        | Logged - Full        |
 | Get Comm. Event Counters                           | Logged - Header Only |
 | Get Comm. Event Log                                | Logged - Header Only |
 | Write Multiple Coils                               | Logged - Full        |
