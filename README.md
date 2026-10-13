@@ -53,6 +53,24 @@ If users are not using site/local.zeek or another site installation of Zeek and 
 zeek -Cr icsnpp-modbus/tests/traces/modbus_example.pcap icsnpp-modbus
 ```
 
+## Custom TCP Ports
+
+Zeek's built-in Modbus parser handles the standard Modbus server port, TCP/502. This package can additionally assign non-standard TCP ports directly to that analyzer. Modbus/UDP is not supported, and this package does not use a payload signature for protocol detection.
+
+To retain TCP/502 and add a non-standard server port such as TCP/12345, extend `Modbus_Extended::additional_tcp_ports` in a Zeek policy file such as `local.zeek`:
+
+```zeek
+@load icsnpp-modbus
+
+redef Modbus_Extended::additional_tcp_ports += { 12345/tcp };
+```
+
+The package registers every port in `additional_tcp_ports` with Zeek's Modbus analyzer and adds it to `likely_server_ports`. Analyzer registration is what enables parsing on the port. `likely_server_ports` is only a connection-direction heuristic; adding TCP/12345 to that set alone does not enable Modbus parsing.
+
+Port configuration is read when Zeek initializes. Restart a standalone Zeek process, or redeploy/restart Zeek cluster workers, after changing the policy. A parser rebuild or package reinstall is not required for a port-only change.
+
+Direct port registration sends all TCP traffic whose inferred server port matches a configured port to the Modbus analyzer without first validating the payload. Configure only ports dedicated to Modbus; unrelated or malformed traffic can cause analyzer violations, misleading results, and additional processing overhead.
+
 ## Logging Capabilities
 
 ### Detailed Modbus Field Log (modbus_detailed.log)
