@@ -19,6 +19,10 @@ export {
                             LOG_READ_WRITE_MULTIPLE_REGISTERS,
                             LOG_READ_DEVICE_IDENTIFICATION };
 
+    ## Additional TCP ports assigned directly to Zeek's Modbus analyzer.
+    ## Zeek's built-in Modbus policy continues to handle the standard 502/tcp port.
+    const additional_tcp_ports: set[port] = {} &redef;
+
     #########################################################################################################################
     #####################################  Modbus Detailed Log -> modbus_detailed.log  ######################################
     #########################################################################################################################
@@ -276,6 +280,11 @@ function handled_modbus_funct_list (cur_func_str : string): bool {
 # Defines Log Streams for modbus_detailed.log, modbus_mask_write_register.log, and modbus_read_write_multiple_registers.log #
 #############################################################################################################################
 event zeek_init() &priority=5 {
+    for ( p in additional_tcp_ports )
+        add likely_server_ports[p];
+
+    Analyzer::register_for_ports(Analyzer::ANALYZER_MODBUS, additional_tcp_ports);
+
     Log::create_stream(Modbus_Extended::LOG_DETAILED, [$columns=Modbus_Detailed, 
                                                        $ev=log_modbus_detailed,
                                                        $path="modbus_detailed",
