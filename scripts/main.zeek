@@ -137,7 +137,7 @@ redef DPD::ignore_violations += { Analyzer::ANALYZER_MODBUS };
 const device_identification_conformity_level = {
     [0x01] = "Basic Identification (Stream)",
     [0x02] = "Regular Identification (Stream)",
-    [0x04] = "Extended Identification (Stream)",
+    [0x03] = "Extended Identification (Stream)",
     [0x81] = "Basic Identification (Stream, Individual)",
     [0x82] = "Regular Identification (Stream, Individual)",
     [0x83] = "Extended Identification (Stream, Individual)"
@@ -152,13 +152,6 @@ const device_identification_object_id = {
     [0x05] = "ModelName",
     [0x06] = "UserApplicationName"
 
-} &default=function(i: count):string { return "Unknown"; } &redef;
-
-const device_identification_read_object_id = {
-    [0x00] = "Basic Device Identification",
-    [0x01] = "Regular Device Identification",
-    [0x02] = "Extended Device Identification",
-    [0x03] = "Specific Device Identification"
 } &default=function(i: count):string { return "Unknown"; } &redef;
 @endif
 
@@ -1628,7 +1621,7 @@ function modbus_read_device_identification_request(c: connection,
     read_device_identification_request$mei_type                 = "READ-DEVICE-IDENTIFICATION";
     read_device_identification_request$device_id_code           = bytestring_to_count(data[0]);
     read_device_identification_request$object_id_code           = fmt("0x%02x",bytestring_to_count(data[1]));
-    read_device_identification_request$object_id                = device_identification_read_object_id[bytestring_to_count(data[1])];
+    read_device_identification_request$object_id                = device_identification_object_id[bytestring_to_count(data[1])];
 
     Log::write(LOG_READ_DEVICE_IDENTIFICATION, read_device_identification_request);
 }
