@@ -23,6 +23,11 @@ export {
     ## Zeek's built-in Modbus policy continues to handle the standard 502/tcp port.
     const additional_tcp_ports: set[port] = {} &redef;
 
+    ## Log a request (or a response) as unmatched (matched=F) if its
+    ## counterpart has not arrived within this interval. 0 secs disables the timer and keeps the
+    ## upstream behaviour (flush only when the connection is removed).
+    const response_timeout: interval = 0 secs &redef;
+
     #########################################################################################################################
     #####################################  Modbus Detailed Log -> modbus_detailed.log  ######################################
     #########################################################################################################################
@@ -1878,20 +1883,41 @@ event modbus_exception(c: connection,
     }
 }
 
+event Modbus_Extended::expire_pending(is_req: bool, cid: conn_id, tid: count, pdu_ts: time) {
+    local pending = is_req ? modbus_requests : modbus_responses;
+    if ( cid !in pending || tid !in pending[cid] )
+        return;
+
+    local rec = pending[cid][tid];
+    # The transaction id may have been reused by a later PDU.
+    if ( rec$ts != pdu_ts )
+        return;
+
+    rec$matched = F;
+    Log::write(LOG_DETAILED, rec);
+    delete pending[cid][tid];
+}
+
+event modbus_message(c: connection, headers: ModbusHeaders, is_orig: bool) &priority=-10 {
+    if ( response_timeout > 0 secs )
+        schedule response_timeout { Modbus_Extended::expire_pending(is_orig, c$id, headers$tid, network_time()) };
+}
+
 event connection_state_remove(c: connection) {
-    for ( c_id, t_ids in modbus_requests ) {
-        for (id, req in t_ids ) {
+    # Flush only this connection's pending transactions; other connections may
+    # still receive their responses.
+    if ( c$id in modbus_requests ) {
+        for ( tid, req in modbus_requests[c$id] ) {
             req$matched = F;
             Log::write(LOG_DETAILED, req);
         }
+        delete modbus_requests[c$id];
     }
-    for ( c_id in modbus_responses ) {
-        for (id in modbus_responses[c_id] ) {
-            local resp: Modbus_Detailed = modbus_responses[c_id][id];
+    if ( c$id in modbus_responses ) {
+        for ( tid, resp in modbus_responses[c$id] ) {
             resp$matched = F;
             Log::write(LOG_DETAILED, resp);
         }
+        delete modbus_responses[c$id];
     }
-    delete modbus_requests;
-    delete modbus_responses;
 }
